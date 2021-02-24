@@ -6,8 +6,7 @@ tasks:
   - command: |
       npm install -g bower
       bower install
-image:
-  file: Dockerfile
+
 ports:
   - port: 3000
     onOpen: open-preview

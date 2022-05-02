@@ -11,7 +11,7 @@
 }
 
 .jeopardy-board .board-row {
-  height: 16%;
+  height: 16.67%;
 }
 
 .jeopardy-board .fj-row {
@@ -20,12 +20,6 @@
 
 .jeopardy-board .category-row {
   border-bottom: 3px solid black;
-}
-
-.jeopardy-board .score-row {
-  height: 4%;
-  background: black;
-  font-size: 150%;
 }
 
 .jeopardy-board .board-cell {
@@ -66,9 +60,8 @@
 .board-modal-open .modal-content {
   background: #0015a0;
   color: #ffffff;
-  font-family: 'Korinna', 'Kadwa', serif;
+  font-family: 'Kadwa', serif;
   font-size: 400%;
-  font-weight: 600;
   text-shadow: 4px 4px #000000;
   text-transform: uppercase;
   text-align: center;
@@ -98,7 +91,7 @@
 }
 
 .player-name {
-  font-family: 'Korinna', 'Kadwa', serif;
+  font-family: 'Kadwa', serif;
   text-transform: uppercase;
 }
 
@@ -123,4 +116,8 @@
 
 .panel {
   margin-bottom: 5px;
+}
+
+.navbar-btn {
+	margin-right:2px;
 }

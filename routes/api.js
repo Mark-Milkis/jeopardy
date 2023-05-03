@@ -38,7 +38,7 @@ function exportIndex (req, res, next, isSeasonsList=false) {
   };
 }
 
-function exportRound ($, context, r) {
+function exportRound($, context, r) {
   var result = {};
   var round = $(r !== 'FJ' ? 'table.round' : 'table.final_round', context);
 
@@ -49,33 +49,33 @@ function exportRound ($, context, r) {
       category_name: $('.category_name', data).text(),
       category_comments: $('.category_comments', data).text(),
       media: $('a', data).length ? $('a', data).map(function (i, element) {
-        return $(this).attr('href').replace('http://www.j-archive.com/', 'http://localhost:3000/');
+        return $(this).attr('href').replace('http://www.j-archive.com/',
+          'http://localhost:3000/');
       }).toArray() : undefined
     };
   });
 
   // Export clues
-  $('.clue_text', round).each(function (i, element) {
+  $('.clue_text', round).not('[id$="_r"]').each(function (i, element) {
     var data = $(this);
     var header = data.parent().prev();
     if (r === 'FJ') {
       header = data.parent().parent().parent().parent().prev();
     }
 
-    var answerHtml = _.trimLeft(_.trimRight($('div', header).attr('onmouseover'), ')'), 'toggle(').split(', ').slice(2).join(', ');
-    answerHtml = _.trim(_.trim(answerHtml), '\'').replace('\\"', '"').replace('\\"', '"');
     var link = $('.clue_order_number a', header).attr('href');
     var daily_double = header.find('.clue_value_daily_double').length;
 
     result[data.attr('id')] = {
       id: link ? link.substring(link.indexOf('=') + 1, link.length) : undefined,
       daily_double: daily_double ? true : undefined,
-      triple_stumper: _.contains(answerHtml, 'Triple Stumper') || undefined,
+      triple_stumper: _.contains(data.html(), 'Triple Stumper') || undefined,
       clue_html: data.html(),
       clue_text: data.text(),
-      correct_response: cheerio.load(answerHtml)('.correct_response').text(),
+      correct_response: header.next().find('.correct_response').text(),
       media: $('a', data).length ? $('a', data).map(function (i, element) {
-        return $(this).attr('href').replace('http://www.j-archive.com/', 'http://localhost:3000/');
+        return $(this).attr('href').replace('http://www.j-archive.com/',
+          'http://localhost:3000/');
       }).toArray() : undefined
     };
   });

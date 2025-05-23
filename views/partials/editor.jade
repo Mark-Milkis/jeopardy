@@ -1,0 +1,110 @@
+.container
+  h1 
+    | Jeopardy Game Editor 
+    small(ng-if="gameId") 
+      | (Editing Existing Game)
+    small(ng-if="!gameId") 
+      | (Creating New Game)
+  
+  // Game Info Section
+  .panel.panel-primary
+    .panel-heading
+      h3.panel-title Game Information
+    .panel-body
+      .form-group(ng-if="gameId")
+        label(for="gameId") Game ID
+        input.form-control#gameId(type="text", ng-model="game.id", readonly)
+      .form-group
+        label(for="gameTitle") Game Title
+        input.form-control#gameTitle(type="text", ng-model="game.game_title")
+      .form-group
+        label(for="gameComments") Game Comments
+        textarea.form-control#gameComments(ng-model="game.game_comments", rows="2")
+  
+  // Navigation tabs
+  ul.nav.nav-tabs.nav-justified
+    li(ng-class="{'active': editor.round === 'J'}")
+      a(href="", ng-click="selectRound('J')") Jeopardy Round
+    li(ng-class="{'active': editor.round === 'DJ'}")
+      a(href="", ng-click="selectRound('DJ')") Double Jeopardy Round
+    li(ng-class="{'active': editor.round === 'FJ'}")
+      a(href="", ng-click="selectRound('FJ')") Final Jeopardy
+  
+  // Category Selection (not for FJ)
+  .row(ng-if="editor.round !== 'FJ'", style="margin-top: 15px;")
+    .col-md-2(ng-repeat="i in [1,2,3,4,5,6]")
+      button.btn.btn-block(
+        type="button", 
+        ng-click="selectCategory(i)", 
+        ng-class="{'btn-primary': editor.category === i, 'btn-default': editor.category !== i}"
+      ) {{game['category_' + editor.round + '_' + i].category_name}}
+  
+  // Category Editor
+  .panel.panel-info(style="margin-top: 15px;")
+    .panel-heading 
+      h3.panel-title Category Details
+    .panel-body
+      .form-group
+        label Category Name
+        input.form-control(type="text", ng-model="getCurrentCategory().category_name")
+      .form-group
+        label Category Comments
+        textarea.form-control(ng-model="getCurrentCategory().category_comments", rows="2")
+  
+  // Clue Selection (not for FJ)
+  .row(ng-if="editor.round !== 'FJ'")
+    .col-md-2.col-md-offset-1(ng-repeat="i in [1,2,3,4,5]")
+      button.btn.btn-block(
+        type="button",
+        ng-click="selectClue(i)",
+        ng-class="{'btn-primary': editor.clue === i, 'btn-default': editor.clue !== i}"
+      ) ${{i * (editor.round === 'J' ? 200 : 400)}}
+  
+  // Clue Editor
+  .panel.panel-success(style="margin-top: 15px;")
+    .panel-heading
+      h3.panel-title 
+        | Clue Details
+        span.pull-right(ng-if="editor.round !== 'FJ'") ${{editor.clue * (editor.round === 'J' ? 200 : 400)}}
+    .panel-body
+      .form-group
+        label Clue Text
+        textarea.form-control(ng-model="getCurrentClue().clue_text", rows="3")
+      .form-group
+        label Correct Response
+        input.form-control(type="text", ng-model="getCurrentClue().correct_response")
+      
+      .checkbox(ng-if="editor.round !== 'FJ'")
+        label
+          input(type="checkbox", ng-model="getCurrentClue().daily_double")
+          | Daily Double
+      
+      .checkbox(ng-if="editor.round !== 'FJ'")
+        label
+          input(type="checkbox", ng-model="getCurrentClue().triple_stumper")
+          | Triple Stumper
+  
+  // Action Buttons
+  .row(style="margin-top: 20px; margin-bottom: 40px;")
+    .col-md-3
+      button.btn.btn-success.btn-lg.btn-block(ng-click="saveGame()")
+        span.glyphicon.glyphicon-floppy-disk
+        |  Save Game
+    .col-md-3(ng-if="gameId")
+      button.btn.btn-warning.btn-lg.btn-block(ng-click="saveAsNew()")
+        span.glyphicon.glyphicon-duplicate
+        |  Save as New
+    .col-md-3(ng-class="{'col-md-4': !gameId}")
+      button.btn.btn-primary.btn-lg.btn-block(ng-click="downloadGame()")
+        span.glyphicon.glyphicon-download-alt
+        |  Download
+    .col-md-3(ng-class="{'col-md-4': !gameId}")
+      .btn.btn-info.btn-lg.btn-block(ng-click="importGame()")
+        span.glyphicon.glyphicon-upload
+        |  Import
+      input#gameFileInput(type="file", accept=".json", style="display: none", onchange="angular.element(this).scope().handleFileSelect(event)")
+      
+  // Back Button
+  .row
+    .col-md-12
+      a.btn.btn-default(ui-sref="seasons") Back to Games List

@@ -21,8 +21,24 @@ module.exports = function (io) {
       if (data.round === 'J') {
         data.round = 'DJ';
         
+        // Initialize player scores if they don't exist
+        var players = ['player_1', 'player_2', 'player_3', 'player_4', 'player_5', 'player_6'];
+        players.forEach(function(player) {
+          if (!data[player] || data[player].score === undefined) {
+            data[player] = data[player] || {};
+            data[player].score = 0;
+          }
+        });
+        
         //figure out who has control
-        lowest_score = Math.min(data.player_1.score,data.player_2.score,data.player_3.score,data.player_4.score,data.player_5.score,data.player_6.score);
+        var lowest_score = Math.min(
+          data.player_1.score,
+          data.player_2.score,
+          data.player_3.score,
+          data.player_4.score,
+          data.player_5.score,
+          data.player_6.score
+        );
         
         if(lowest_score == data.player_1.score)
         {

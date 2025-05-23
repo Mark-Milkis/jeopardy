@@ -1,12 +1,23 @@
 .container
   h1 Season {{id}}
+  div.text-right(ng-if="isCustomGamesSection()", style="margin-bottom: 20px;")
+    a.btn.btn-primary(ui-sref='editor')
+      span.glyphicon.glyphicon-plus
+      |  Create New Custom Game
   table.table.table-striped.table-hover.table-bordered
     tr
       th Name
       th Description
       th Note
+      th(ng-if="isCustomGamesSection()") Actions
     tr(ng-repeat='episode in data')
       td
         a(ui-sref='game({ id: episode.id })') {{ episode.name }}
       td {{episode.description}}
       td {{episode.note}}
+      td(ng-if="isCustomGamesSection()")
+        .btn-group
+          a.btn.btn-sm.btn-primary(ui-sref='editor({ id: episode.id })')
+            span.glyphicon.glyphicon-pencil
+          button.btn.btn-sm.btn-danger(ng-click="deleteGame(episode.id)")
+            span.glyphicon.glyphicon-trash

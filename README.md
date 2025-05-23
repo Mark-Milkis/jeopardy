@@ -25,6 +25,10 @@ The objective was to run games as close to the real thing as possible, so other 
 
 ![host3](/screens/host3.png?raw=true "Host Interface")
 
+### Custom Game Editor
+
+You can create and edit your own custom Jeopardy games using the built-in editor.
+
 ## Getting Started
 
 This app runs on [Node.js](https://nodejs.org/), make sure to install it before continuing. Also, if you don't have a buzzer, build one!
@@ -58,6 +62,31 @@ If you see a red "TS" next to a clue, that means it was a Triple Stumper on the 
 When all the clues are gone, hit the "End Round" button. Between the Jeopardy! and Double Jeopardy! rounds, the contestants' scores will be displayed on the board, and control will be given to the player with the lowest score.
 
 When you reach Final Jeopardy!, you must enter the contestants' wagers before the question is displayed. If you really want to get serious, there will be a link to J! Archive's wagering suggestions page, automatically populated with your contestants' names and scores. If you're actually practicing for Jeopardy!, you'd better be learning how to wager properly. Confirm the wagers, read the question (the Think! music will automatically start playing), let your contestants write down their answers, then enter the results. Hit the "End Round" button one last time to display your contestants' final scores on the big screen, and you're all done! (This is dumb that I didn't just make it happen automatically, but oh well.)
+
+### Creating Custom Games
+
+You can create and edit your own custom games using the built-in editor:
+
+1. From the main screen, click on "Custom Games" in the seasons list.
+2. Click the "Create New Custom Game" button at the top of the page.
+3. In the editor, you can:
+   * Set the game title and add comments
+   * Navigate between Jeopardy!, Double Jeopardy!, and Final Jeopardy! rounds
+   * Edit category names and create clues with their answers
+   * Mark clues as Daily Doubles or Triple Stumpers
+4. Click "Save Game" to store your custom game for later use.
+5. Use "Download Game" to export your custom game as a JSON file for backup or sharing.
+6. Use "Import Game" to load a previously downloaded game file.
+
+### Editing Existing Custom Games
+
+You can edit your existing custom games:
+
+1. From the "Custom Games" section, find the game you want to edit.
+2. Click the pencil icon next to the game to open it in the editor.
+3. Make your changes to the game content.
+4. Click "Save Game" to update the existing game, or "Save as New" to create a duplicate.
+5. The editor will show "Editing Existing Game" in the title when working on a saved game.
 
 Let's just reiterate that, be sure to hit "End Round" at the end of Final Jeopardy! This will display the final scores, as well as save a log of the game's results to a file on your computer in the `games` folder. You are also given some convenient links to the J! Archive so you can see how the real game played out. You can then use the "Reset Game" button if you'd like to play again, or use your browser's Back button to go back and pick another game.
 

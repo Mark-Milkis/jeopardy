@@ -41,7 +41,7 @@ This app runs on [Node.js](https://nodejs.org/), make sure to install it before 
 4. Start the game server with `node app.js`
 5. Open http://localhost:3000/ for the host interface.
 6. Open http://localhost:3000/#/board for the clue board.
-  * If you have a Chromecast, this is the tab you'll want to cast!
+   * If you have a Chromecast, this is the tab you'll want to cast!
 
 ### Starting a Game
 

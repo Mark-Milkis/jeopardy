@@ -1,6 +1,7 @@
 var httpProxy = require('http-proxy');
 var proxy = httpProxy.createProxyServer({
-  target: 'http://www.j-archive.com/'
+  target: 'http://www.j-archive.com/',
+  proxyTimeout: 30000
 });
 
 proxy.on('error', function (err, req, res) {

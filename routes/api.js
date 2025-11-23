@@ -2,19 +2,20 @@
  * Serve JSON to our AngularJS client
  */
 
+
 var request = require('request');
 var cheerio = require('cheerio');
 var _ = require('lodash');
 var fs = require('fs');
 
 function requestWithFallback(url, callback) {
-  request(url, function (error, response, html) {
+  request({ url: url, timeout: 30000 }, function (error, response, html) {
     if (!error && response.statusCode === 200) {
       callback(error, response, html);
     } else {
       console.log('Primary source failed, trying Wayback Machine for:', url);
       var waybackUrl = 'https://web.archive.org/web/20250920124038/' + url;
-      request(waybackUrl, function (wbError, wbResponse, wbHtml) {
+      request({ url: waybackUrl, timeout: 30000 }, function (wbError, wbResponse, wbHtml) {
         callback(wbError, wbResponse, wbHtml);
       });
     }

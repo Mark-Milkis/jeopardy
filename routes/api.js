@@ -126,13 +126,19 @@ exports.season = function (req, res, next) {
 
 exports.game = function (req, res, next) {
   var gameUrl;
-  if (req.params.id.startsWith('00')) {
+  if (req.params.id.startsWith('custom_') || req.params.id.startsWith('00')) {
     fs.readFile('games/' + req.params.id + '.json', 'utf8', function (err, data) {
       if (err) {
         next(err);
       }
       else {
         file = JSON.parse(data);
+
+        if (req.params.id.startsWith('custom_')) {
+          // Custom game format is already in the correct structure
+          res.json(file);
+          return;
+        }
 
         var result = {
           id: req.params.id,
@@ -203,3 +209,53 @@ exports.game = function (req, res, next) {
     });
   }
 }
+
+// Handler for saving custom games
+exports.saveGame = function (req, res, next) {
+  try {
+    var game = req.body;
+
+    // Generate ID if not provided
+    if (!game.id || (!game.id.startsWith('custom_') && !game.id.startsWith('00'))) {
+      game.id = 'custom_' + new Date().getTime();
+    }
+
+    // Ensure the games directory exists
+    if (!fs.existsSync('games')) {
+      fs.mkdirSync('games');
+    }
+
+    // Save the game to file
+    fs.writeFileSync('games/' + game.id + '.json', JSON.stringify(game, null, 2));
+
+    res.json({ success: true, id: game.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Handler for deleting custom games
+exports.deleteGame = function (req, res, next) {
+  try {
+    var gameId = req.params.id;
+
+    // Only allow deletion of custom games
+    if (!gameId.startsWith('custom_') && !gameId.startsWith('00')) {
+      return res.status(403).json({ error: 'Can only delete custom games' });
+    }
+
+    var filePath = 'games/' + gameId + '.json';
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    // Delete the file
+    fs.unlinkSync(filePath);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

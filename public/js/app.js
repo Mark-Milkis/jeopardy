@@ -53,5 +53,19 @@ config(function ($stateProvider, $urlRouterProvider) {
       url: '/board',
       templateUrl: 'partials/board',
       controller: 'BoardCtrl'
+    }).
+    state('editor', {
+      url: '/editor/:id?',
+      templateUrl: 'partials/editor',
+      controller: 'EditorCtrl',
+      resolve: {
+        response: function ($http, $stateParams) {
+          if ($stateParams.id) {
+            return $http.get('/api/games/' + $stateParams.id);
+          } else {
+            return { data: null };
+          }
+        }
+      }
     });
 });

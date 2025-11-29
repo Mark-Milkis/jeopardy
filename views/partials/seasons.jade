@@ -1,5 +1,9 @@
 .container
   h1 All Seasons
+  div.text-right(style="margin-bottom: 20px;", ng-if="isCustomGamesSection()")
+    a.btn.btn-primary(ui-sref='editor')
+      span.glyphicon.glyphicon-plus
+      |  Create New Custom Game
   table.table.table-striped.table-hover.table-bordered
     tr
       th Name

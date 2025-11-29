@@ -7,7 +7,11 @@ var cheerio = require('cheerio');
 var _ = require('lodash');
 var fs = require('fs');
 
-function exportIndex (req, res, next, isSeasonsList=false) {
+var headers = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+};
+
+function exportIndex(req, res, next, isSeasonsList = false) {
   return function (error, response, html) {
     if (!error) {
       var $ = cheerio.load(html), result = [];
@@ -24,7 +28,7 @@ function exportIndex (req, res, next, isSeasonsList=false) {
             row.push(link);
           }
           row.push($(element).text().trim());
-				});
+        });
 
         //console.log(row);
         result.push(_.zipObject(['id', 'name', 'description', 'note'], row));
@@ -84,17 +88,20 @@ function exportRound($, context, r) {
 }
 
 exports.seasons = function (req, res, next) {
-  request('http://www.j-archive.com/listseasons.php', exportIndex(req, res, next, true));
+  request({
+    url: 'http://www.j-archive.com/listseasons.php',
+    headers: headers
+  }, exportIndex(req, res, next, true));
 };
 
 exports.season = function (req, res, next) {
   if (req.params.id === '00') {
     // List custom games
     var gamesPath = 'games/'
-    fs.readdir(gamesPath, function(err, items) {
+    fs.readdir(gamesPath, function (err, items) {
       var games = [];
 
-      for (var i=0; i<items.length; i++) {
+      for (var i = 0; i < items.length; i++) {
         var customGameLite = {};
         if (items[i] === '.gitkeep') {
           continue;
@@ -110,7 +117,10 @@ exports.season = function (req, res, next) {
     });
 
   } else {
-    request('http://www.j-archive.com/showseason.php?season=' + req.params.id, exportIndex(req, res, next, false));
+    request({
+      url: 'http://www.j-archive.com/showseason.php?season=' + req.params.id,
+      headers: headers
+    }, exportIndex(req, res, next, false));
   }
 }
 
@@ -118,42 +128,44 @@ exports.game = function (req, res, next) {
   var gameUrl;
   if (req.params.id.startsWith('00')) {
     fs.readFile('games/' + req.params.id + '.json', 'utf8', function (err, data) {
-      if (err){
-      	next(err);
+      if (err) {
+        next(err);
       }
-      else
-      {
-      	file = JSON.parse(data);
-      	
-      	var result = {
-	        id: req.params.id,
-	        game_title: file.title,
-	        game_comments: file.comments,
-	        game_complete: false,
+      else {
+        file = JSON.parse(data);
+
+        var result = {
+          id: req.params.id,
+          game_title: file.title,
+          game_comments: file.comments,
+          game_complete: false,
         };
-        
-        result = _.assign(result,file.J,file.DJ,file.FJ);
-        
+
+        result = _.assign(result, file.J, file.DJ, file.FJ);
+
         result.game_complete = _.countBy(_.keys(result), function (n) {
-        	return n.split('_')[0];
-      	}).clue === (30 + 30 + 1);
+          return n.split('_')[0];
+        }).clue === (30 + 30 + 1);
 
-      	var clueCounts = _.countBy(_.keys(result), function (n) {
-        	return n.split('_').slice(0, 3).join('_');
-      	});
+        var clueCounts = _.countBy(_.keys(result), function (n) {
+          return n.split('_').slice(0, 3).join('_');
+        });
 
-      	_.forEach(result, function (n, key) {
-	        if (_.startsWith(key, 'category')) {
-	          n.clue_count = clueCounts[key.replace('category', 'clue')];
-	        }
-      	});
+        _.forEach(result, function (n, key) {
+          if (_.startsWith(key, 'category')) {
+            n.clue_count = clueCounts[key.replace('category', 'clue')];
+          }
+        });
 
-      	res.json(result);
+        res.json(result);
       }
     });
   } else {
     gameUrl = 'http://www.j-archive.com/showgame.php?game_id=' + req.params.id;
-    request(gameUrl, function (error, response, html) {
+    request({
+      url: gameUrl,
+      headers: headers
+    }, function (error, response, html) {
       if (!error) {
         var $ = cheerio.load(html);
 

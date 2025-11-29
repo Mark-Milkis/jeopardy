@@ -1,5 +1,5 @@
 # FROM node:16
-FROM node:lts-slim
+FROM node:22-slim
 
 WORKDIR /usr/src/app
 

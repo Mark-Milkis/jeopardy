@@ -1,0 +1,301 @@
+import React, { useState, useEffect } from 'react';
+import { useGame } from '../services/gameService';
+import { GamePhase, BuzzerStatus } from '../types';
+
+const PlayerView: React.FC = () => {
+  const { gameState, joinGame, buzz, submitWager, submitFinalAnswer } = useGame();
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  // Use a dedicated state for forcing re-renders during countdown
+  const [, setTick] = useState(0);
+
+  // Input states
+  const [wagerInput, setWagerInput] = useState('');
+  const [answerInput, setAnswerInput] = useState('');
+
+  // Always derive player state at top level
+  const player = playerId ? gameState.players.find(p => p.id === playerId) : undefined;
+  
+  // Calculate Penalty State
+  const now = Date.now();
+  const isLockedOut = player?.lockedOutUntil ? player.lockedOutUntil > now : false;
+
+  // Force re-render if locked out to update UI when time expires
+  useEffect(() => {
+    if (isLockedOut) {
+        const interval = setInterval(() => {
+            setTick(t => t + 1);
+        }, 50); 
+        return () => clearInterval(interval);
+    }
+  }, [isLockedOut]);
+
+  // Haptic Feedback Logic
+  useEffect(() => {
+    if (!player) return;
+
+    if (player.buzzerStatus === BuzzerStatus.WINNER) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+    } else if (player.buzzerStatus === BuzzerStatus.LOSER) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(200); 
+    } else if (player.buzzerStatus === BuzzerStatus.ARMED) {
+       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+    }
+  }, [player?.buzzerStatus]); 
+
+  // Handle Join
+  const handleJoin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      const id = joinGame(name);
+      setPlayerId(id);
+    }
+  };
+
+  // Handle Buzz
+  const handleBuzz = () => {
+    if (!player) return;
+    buzz(player.id);
+    if (player.buzzerStatus === BuzzerStatus.ARMED) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+    }
+  };
+
+  // Handle Wager Submit
+  const handleWagerSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!player) return;
+      const amount = parseInt(wagerInput);
+      if (!isNaN(amount) && amount >= 0) {
+          submitWager(player.id, amount);
+      }
+  };
+
+  // Handle Final Answer Submit
+  const handleAnswerSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!player) return;
+      submitFinalAnswer(player.id, answerInput);
+  };
+
+  // --- RENDER LOGIC ---
+
+  // 1. Join Screen
+  if (!playerId) {
+    return (
+      <div className="h-full w-full bg-[#060CE9] flex flex-col items-center justify-center p-6 text-white">
+        <h1 className="text-4xl font-serif text-[#FFCC00] mb-8 drop-shadow-md">Jeopardy!</h1>
+        <form onSubmit={handleJoin} className="w-full max-w-sm flex flex-col gap-4">
+          <label className="text-lg font-bold">Enter your Name</label>
+          <input 
+            type="text" 
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="p-4 rounded text-black text-xl font-bold uppercase text-center"
+            placeholder="NICKNAME"
+            maxLength={10}
+          />
+          <button type="submit" className="bg-[#FFCC00] text-[#060CE9] p-4 rounded font-bold text-xl uppercase shadow-lg active:scale-95 transition-transform">
+            Join Game
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (!player) {
+    return (
+      <div className="h-full w-full bg-[#060CE9] flex flex-col items-center justify-center text-white">
+        <div className="animate-spin text-4xl">⏳</div>
+        <p className="mt-4 font-bold">Connecting...</p>
+      </div>
+    );
+  }
+
+  // --- FINAL JEOPARDY MODES ---
+  if (gameState.round === 'FINAL_JEOPARDY') {
+      
+      // Phase 1: Wager
+      if (gameState.phase === GamePhase.BOARD) {
+          if (player.wager !== undefined) {
+              return (
+                  <div className="h-full w-full bg-indigo-900 flex flex-col items-center justify-center text-white p-6">
+                      <h2 className="text-3xl font-bold mb-4">Wager Locked</h2>
+                      <p className="text-5xl font-mono text-[#FFCC00]">${player.wager}</p>
+                      <p className="mt-8 animate-pulse text-gray-300">Waiting for other players...</p>
+                  </div>
+              );
+          }
+          return (
+              <div className="h-full w-full bg-indigo-900 flex flex-col items-center justify-center text-white p-6">
+                  <h2 className="text-2xl font-bold mb-2 uppercase tracking-widest text-[#FFCC00]">Final Jeopardy</h2>
+                  <p className="mb-8 text-center opacity-80">Enter your wager. Max: ${Math.max(0, player.score)}</p>
+                  <form onSubmit={handleWagerSubmit} className="w-full max-w-xs flex flex-col gap-4">
+                      <input 
+                          type="number" 
+                          value={wagerInput}
+                          onChange={(e) => setWagerInput(e.target.value)}
+                          max={Math.max(0, player.score)}
+                          min={0}
+                          className="p-4 rounded text-black text-3xl font-bold text-center"
+                          placeholder="$0"
+                          autoFocus
+                      />
+                      <button type="submit" className="bg-[#FFCC00] text-[#060CE9] p-4 rounded font-bold text-xl uppercase shadow-lg">
+                          Lock Wager
+                      </button>
+                  </form>
+              </div>
+          );
+      }
+
+      // Phase 2: Answer
+      if (gameState.phase === GamePhase.CLUE) {
+          if (player.finalAnswer !== undefined) {
+               return (
+                  <div className="h-full w-full bg-indigo-900 flex flex-col items-center justify-center text-white p-6">
+                      <h2 className="text-3xl font-bold mb-4">Answer Locked</h2>
+                      <p className="text-2xl font-serif italic text-[#FFCC00] text-center">"{player.finalAnswer}"</p>
+                      <p className="mt-8 animate-pulse text-gray-300">Good Luck!</p>
+                  </div>
+              );
+          }
+          return (
+              <div className="h-full w-full bg-indigo-900 flex flex-col items-center justify-center text-white p-6">
+                  <h2 className="text-2xl font-bold mb-4 uppercase tracking-widest text-[#FFCC00]">Your Answer</h2>
+                  <form onSubmit={handleAnswerSubmit} className="w-full max-w-sm flex flex-col gap-4">
+                      <textarea 
+                          value={answerInput}
+                          onChange={(e) => setAnswerInput(e.target.value)}
+                          className="p-4 rounded text-black text-xl font-serif text-center min-h-[150px]"
+                          placeholder="What is..."
+                          autoFocus
+                      />
+                      <button type="submit" className="bg-green-500 text-white p-4 rounded font-bold text-xl uppercase shadow-lg">
+                          Submit Answer
+                      </button>
+                  </form>
+              </div>
+          );
+      }
+
+      // Phase 3: Reveal
+      if (gameState.phase === GamePhase.FINAL_REVEAL) {
+          return (
+              <div className="h-full w-full bg-[#060CE9] flex flex-col items-center justify-center text-white p-6">
+                  <h2 className="text-4xl font-serif font-bold text-[#FFCC00] mb-8">Look at the Board</h2>
+                  <div className="animate-bounce text-6xl">👀</div>
+              </div>
+          );
+      }
+  }
+
+  // --- STANDARD GAMEPLAY ---
+  
+  // Dynamic Styles
+  let buttonColor = "bg-gray-400 text-white";
+  let buttonText = "LOCKED";
+  let buttonEffect = "";
+  let isDisabled = true;
+
+  // OVERRIDE FOR DAILY DOUBLE
+  if (gameState.phase === GamePhase.DAILY_DOUBLE) {
+      buttonColor = "bg-[#060CE9] text-[#FFCC00] border-[#FFCC00]";
+      buttonText = "DAILY DOUBLE";
+      isDisabled = true;
+  } else if (isLockedOut) {
+      buttonColor = "bg-yellow-400 border-yellow-600 text-black shadow-[0_0_30px_rgba(250,204,21,0.5)]";
+      buttonText = "PENALTY";
+      isDisabled = true;
+  } else {
+      switch(player.buzzerStatus) {
+        case BuzzerStatus.IDLE:
+             buttonColor = "bg-gray-600 text-white";
+             buttonText = "WAITING";
+             isDisabled = true;
+             break;
+        case BuzzerStatus.LOCKED:
+             if (gameState.activeClueId) {
+                 buttonColor = "bg-gray-600 active:bg-gray-700 text-white";
+                 buttonText = "LISTEN";
+                 isDisabled = false; 
+             } else {
+                 buttonColor = "bg-gray-600 text-white";
+                 buttonText = "WAITING";
+                 isDisabled = true;
+             }
+             break;
+        case BuzzerStatus.ARMED:
+          buttonColor = "bg-green-500 animate-pulse text-white";
+          buttonText = "BUZZ!";
+          buttonEffect = "active:scale-95 active:bg-green-600";
+          isDisabled = false;
+          break;
+        case BuzzerStatus.WINNER:
+          buttonColor = "bg-[#060CE9] text-white";
+          buttonText = "ANSWER NOW!";
+          buttonEffect = "animate-bounce";
+          isDisabled = false;
+          break;
+        case BuzzerStatus.LOSER:
+          buttonColor = "bg-red-600 text-white";
+          buttonText = "LOCKED OUT";
+          isDisabled = true;
+          break;
+      }
+  }
+
+  return (
+    <div className="h-full w-full bg-gray-900 flex flex-col text-white">
+      {/* Header Info */}
+      <div className="p-4 bg-gray-800 flex justify-between items-center border-b border-gray-700">
+        <div>
+          <h2 className="text-xl font-bold font-serif italic text-white">{player.name}</h2>
+          <span className="text-xs text-gray-400">Rank: #1</span>
+        </div>
+        <div className={`text-3xl font-mono font-bold ${player.score < 0 ? 'text-red-400' : 'text-[#FFCC00]'}`}>
+          ${player.score}
+        </div>
+      </div>
+
+      {/* Main Action Area */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-8">
+        
+        {/* Status Message */}
+        <div className="text-center h-16 flex items-center justify-center">
+             <h3 className="text-2xl font-bold uppercase tracking-widest text-white/80">{
+               gameState.phase === GamePhase.DAILY_DOUBLE ? "Waiting for Host..." :
+               isLockedOut ? "PENALTY!" :
+               gameState.phase === GamePhase.BOARD ? "Look at the Board" : 
+               player.buzzerStatus === BuzzerStatus.WINNER ? "IT'S YOU!" :
+               player.buzzerStatus === BuzzerStatus.ARMED ? "GO GO GO!" : 
+               "Wait..."
+             }</h3>
+        </div>
+
+        {/* THE BIG BUTTON */}
+        <button 
+          className={`
+            w-48 h-48 md:w-64 md:h-64 rounded-full border-8 border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.5)]
+            flex flex-col items-center justify-center text-2xl md:text-3xl font-bold tracking-wider
+            transition-all duration-100 select-none touch-manipulation
+            ${buttonColor} ${buttonEffect}
+          `}
+          onTouchStart={(e) => { e.preventDefault(); if (!isDisabled) handleBuzz(); }}
+          onMouseDown={(e) => { if (!isDisabled) handleBuzz(); }}
+          disabled={isDisabled}
+        >
+          <span>{buttonText}</span>
+          {isLockedOut && (
+            <div className="text-xl md:text-2xl mt-1 font-mono font-black">
+              {(Math.max(0, player.lockedOutUntil! - now) / 1000).toFixed(1)}s
+            </div>
+          )}
+        </button>
+
+      </div>
+    </div>
+  );
+};
+
+export default PlayerView;

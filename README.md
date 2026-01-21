@@ -1,6 +1,41 @@
 # Jeopardy! Practice Game
 
-This app was hacked together over a couple of weekends to help practice for Jeopardy! It reads games from [J! Archive](http://www.j-archive.com/) and displays them via separate interfaces to the host and the contestants. Our typical setup for the practice games was:
+This app was hacked together over a couple of weekends to help practice for Jeopardy! It reads games from [J! Archive](http://www.j-archive.com/) and displays them via separate interfaces to the host and the contestants.
+
+## 🚀 Version 2.0 - React + Socket.IO
+
+The app has been modernized with a new React frontend and real-time Socket.IO backend:
+
+- **Modern Stack**: React 18 + TypeScript + Vite
+- **Real-time Sync**: Socket.IO for instant game state updates across all views
+- **Multiple Views**: Host, Player, Board, and Developer interfaces
+- **Better UX**: Improved buzzer logic, Daily Double handling, and Final Jeopardy flow
+
+**Quick Start (v2):**
+```bash
+# Backend (from project root)
+npm start
+
+# Frontend (in new terminal)
+cd client/src
+npm install
+npm run dev
+```
+
+📖 **Full Socket.IO Documentation**: See [README_SOCKETS.md](README_SOCKETS.md)  
+📂 **Project Structure**: See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+
+---
+
+## 📦 Legacy AngularJS Code (Archived)
+
+The original AngularJS frontend has been archived to `/legacy-angular/` to avoid confusion. It's preserved for reference but is no longer maintained. See [legacy-angular/README.md](legacy-angular/README.md) for details.
+
+---
+
+## Original Setup
+
+Our typical setup for the practice games was:
 
 * Computer running this app, placed on host podium
 * Physical buzzer system (lots of schematics are available out there!)
@@ -38,7 +73,7 @@ This app runs on [Node.js](https://nodejs.org/), make sure to install it before 
 1. Clone this repository to your computer.
 2. Open a command prompt in the root folder of the repository.
 3. Install dependencies from NPM and Bower, by running `npm install && bower install`
-4. Start the game server with `node app.js`
+4. Start the game server with `npm start`
 5. Open http://localhost:3000/ for the host interface.
 6. Open http://localhost:3000/#/board for the clue board.
    * If you have a Chromecast, this is the tab you'll want to cast!

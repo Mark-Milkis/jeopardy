@@ -24,12 +24,13 @@ var io = require('socket.io').listen(server);
 
 // all environments
 app.set('port', process.env.PORT || 3000);
-app.set('views', __dirname + '/views');
-app.set('view engine', 'jade');
+// Views archived - legacy Jade templates in /legacy-angular/views/
+// app.set('views', __dirname + '/views');
+// app.set('view engine', 'jade');
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(methodOverride());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../public')));
 
 // development only
 if (app.get('env') === 'development') {
@@ -46,11 +47,7 @@ if (app.get('env') === 'production') {
  * Routes
  */
 
-// serve index and view partials
-app.get('/', routes.index);
-app.get('/partials/:name', routes.partials);
-
-// JSON API
+// JSON API (active)
 app.get('/api/seasons', api.seasons);
 app.get('/api/seasons/:id', api.season);
 app.get('/api/games/:id', api.game);
@@ -60,11 +57,17 @@ app.delete('/api/games/:id', api.deleteGame);
 // J-Archive proxy
 app.get('/media/*', require('./routes/proxy'));
 
-// redirect all others to the index (HTML5 history)
+// Legacy AngularJS routes (archived - see /legacy-angular/README.md)
+// Kept for reference only, recommend using React frontend at /client/src
+app.get('/', routes.index);
+app.get('/partials/:name', routes.partials);
 app.get('*', routes.index);
 
-// Socket.io Communication
-io.sockets.on('connection', require('./routes/socket')(io));
+// Socket.io Communication - v2 React Frontend
+require('./sockets/gameSocket')(io);
+
+// Legacy Socket.io handler (deprecated, kept for backwards compatibility)
+// io.sockets.on('connection', require('./routes/socket')(io));
 
 /**
  * Start Server

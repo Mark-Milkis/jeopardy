@@ -10,4 +10,4 @@ RUN chown -R node:node /usr/src/app
 RUN yarn
 
 EXPOSE 3000
-CMD ["node", "app.js"]
+CMD ["node", "server/index.js"]

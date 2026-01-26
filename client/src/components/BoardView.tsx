@@ -34,7 +34,7 @@ const BoardView: React.FC = () => {
               /* Final Jeopardy single category */
               <div className="w-full h-full flex items-center justify-center">
                 <div className="border-[3px] border-black w-full h-full flex items-center justify-center">
-                  <span className="text-6xl font-bold uppercase text-center" style={{ textShadow: '4px 4px #000000' }}>
+                  <span className="font-bold uppercase text-center" style={{ fontSize: '10vh', textShadow: '4px 4px #000000' }}>
                     {categories[0]?.title}
                   </span>
                 </div>
@@ -45,7 +45,7 @@ const BoardView: React.FC = () => {
                 {/* Category row */}
                 {categories.map((cat) => (
                   <div key={cat.id} className="border-[3px] border-black border-b-[3px] flex items-center justify-center">
-                    <span className="text-2xl font-bold uppercase leading-tight text-center px-2" style={{ textShadow: '4px 4px #000000' }}>
+                    <span className="font-bold uppercase leading-tight text-center px-2" style={{ fontSize: '3vh', textShadow: '4px 4px #000000' }}>
                       {cat.title}
                     </span>
                   </div>
@@ -61,7 +61,7 @@ const BoardView: React.FC = () => {
                           className="border-[3px] border-black flex items-center justify-center"
                         >
                           {!clue.isCompleted && (
-                            <span className="text-[#efaa50] text-6xl font-bold" style={{ textShadow: '4px 4px #000000' }}>
+                            <span className="text-[#efaa50] font-bold" style={{ fontSize: '8vh', textShadow: '4px 4px #000000' }}>
                               ${clue.value}
                             </span>
                           )}
@@ -81,14 +81,14 @@ const BoardView: React.FC = () => {
              {phase === GamePhase.DAILY_DOUBLE && dailyDoubleWager === null ? (
                 // GRAPHIC MODE
                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-[#efaa50] text-9xl font-bold animate-pulse text-center tracking-tighter" style={{ textShadow: '10px 10px 0 #000' }}>
+                  <div className="text-[#efaa50] font-bold animate-pulse text-center tracking-tighter" style={{ fontSize: '15vh', textShadow: '10px 10px 0 #000' }}>
                       DAILY<br/>DOUBLE
                   </div>
                </div>
              ) : (
                 // QUESTION MODE
                <div className="max-w-5xl">
-                 <p className="text-white text-6xl font-bold leading-tight uppercase" style={{ textShadow: '4px 4px #000000' }}>
+                 <p className="text-white font-bold leading-tight uppercase" style={{ fontSize: '6vh', textShadow: '4px 4px #000000' }}>
                    {activeClue.question}
                  </p>
                </div>

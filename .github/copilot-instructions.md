@@ -80,19 +80,42 @@ Located in `client/src/`:
 - Legacy socket handler at `legacy-angular/socket.js.deprecated` (replaced by `server/sockets/gameSocket.js`)
 
 ### Data Models (from `types.ts`)
+**Critical**: Frontend types in `client/src/types.ts` MUST match backend enums in `server/sockets/gameSocket.js`
 ```typescript
+// Shared across frontend/backend (keep in sync!)
+enum GamePhase { BOARD, CLUE, DAILY_DOUBLE, FINAL_JEOPARDY, FINAL_REVEAL, GAME_OVER }
+enum BuzzerStatus { IDLE, LOCKED, ARMED, WINNER, LOSER }
+type GameRound = 'JEOPARDY' | 'DOUBLE_JEOPARDY' | 'FINAL_JEOPARDY'
+
 interface GameState {
-  gameId?: string;
+  gameId: string;
   phase: GamePhase;
-  round: GameRound; // 'JEOPARDY' | 'DOUBLE_JEOPARDY' | 'FINAL_JEOPARDY'
+  round: GameRound;
   categories: Category[];
   players: Player[];
-  activeClue?: Clue;
-  buzzStatus: BuzzerStatus;
-  activePlayer?: string; // Player ID of current buzzer holder
-  // ... wager fields, timing, etc.
+  activeClueId: string | null;    // Currently displayed clue
+  buzzersOpen: boolean;            // Host armed buzzers
+  activePlayerId: string | null;   // Player who buzzed/has control
+  lastBuzzTime: number;            // For early buzz detection
+  earlyBuzzPenaltyDuration: number; // Default 3000ms
+  dailyDoublePlayerId: string | null;
+  dailyDoubleWager: number | null;
+}
+
+interface Player {
+  id: string;                      // UUID generated on join
+  name: string;
+  score: number;
+  buzzerStatus: BuzzerStatus;
+  avatar: string;                  // DiceBear API URL
+  lockedOutUntil: number;          // Timestamp for penalty end
+  wager?: number;                  // Final Jeopardy wager
+  finalAnswer?: string;
+  isFinalAnswerJudged?: boolean;
 }
 ```
+
+**When modifying types**: Update BOTH `types.ts` and `gameSocket.js` enums simultaneously to avoid runtime errors.
 
 ## Development Workflow
 
@@ -105,8 +128,10 @@ npm install              # Client dependencies (React, Vite)
 cd ../..
 npm start                # Starts backend on port 3000
 # In separate terminal, from client/src:
-npm run dev              # Vite dev server (proxies to backend)
+npm run dev              # Vite dev server on port 3000 (same as backend)
 ```
+
+**Important**: Both frontend and backend run on port 3000 - Vite serves the React app directly, not via proxy. Backend Socket.IO and REST API run on the same server instance.
 
 ### Build
 ```bash
@@ -138,33 +163,373 @@ docker run -p 3000:3000 jeopardy
 3. Use Tailwind classes inline for styling
 4. Export and import in `App.tsx` or parent component
 
-### Connecting to Backend Service
+### Working with Socket.IO Events
 Socket.IO integration is complete and functional:
-- Frontend automatically connects to backend on mount via `socket.io-client`
-- Configuration in `client/src/.env`: `VITE_SOCKET_URL=http://localhost:3000`
-- Backend handlers in `server/sockets/gameSocket.js` manage all game logic
-- State updates broadcast to all clients via `io.to(gameId).emit('gameState:update')`
-- Connection status tracked via `isConnected` and `currentPlayerId` in GameContext
+- Frontend automatically connects via `socket.io-client` in `GameProvider` useEffect
+- Socket URL: `VITE_SOCKET_URL` env var (defaults to `http://localhost:3000`)
+- Backend handlers in `server/sockets/gameSocket.js` - all events follow `namespace:action` pattern
+- **Event Naming Convention**: `player:buzz`, `host:openClue`, `gameState:update`
+- State is stored in-memory in `games` Map (key = gameId) - **no persistence across restarts**
+- Room-based isolation: Each game has separate Socket.IO room via `socket.join(gameId)`
+- Broadcast pattern: `io.to(gameId).emit('gameState:update', game)` sends to all clients in room
 - See [README_SOCKETS.md](README_SOCKETS.md) for complete event documentation
+
+**Adding New Socket Events**:
+1. Define handler in `server/sockets/gameSocket.js` with `socket.on('namespace:action', handler)`
+2. Add emitter method in `client/src/services/gameService.tsx` using `socketRef.current.emit()`
+3. Update `GameContextType` interface with new method signature
+4. Broadcast updated state with `broadcastGameState(io, gameId)` at end of handler
 
 ### Adding Game Data Endpoint
 1. Add handler in [routes/api.js](routes/api.js) or new file in `server/`
 2. Register route in [routes/index.js](routes/index.js)
 3. Frontend fetches via `fetch('/api/endpoint')` in `gameService.tsx`
 
+## Missing Features from Legacy Version
+
+The React v2 rewrite is functional for gameplay but lacks several features from the AngularJS version:
+
+### 🔴 CRITICAL (Blocking Real Gameplay)
+1. **Game Browser/Season Selector** - No UI to browse J! Archive seasons or select games
+   - Legacy had `/seasons` and `/seasons/:id` routes with full browsing UI
+   - Backend endpoints exist (`/api/seasons`, `/api/games/:id`) but not connected to frontend
+   - Currently can only play with placeholder test data
+2. **Game Editor** - No way to create/edit custom games through UI
+   - Legacy had full editor at `/editor/:id?` with save/import/export
+   - Must manually edit JSON files in `/games/` directory
+
+### 🟡 HIGH Priority
+3. **Media Support in Clues** - Images/audio from J! Archive not rendered
+   - Backend proxy exists at `/media/*`
+   - Clue data includes `media` field but frontend doesn't display it
+4. **Between-Rounds Score Display** - No full-screen score ceremony
+   - Legacy showed prominent score display after "End Round"
+   - Currently just switches to next board immediately
+
+### 🟢 LOW Priority  
+5. **Triple Stumper Indicators** - No "TS" badge on clues
+6. **"Open Board" Button** - Host must manually navigate to `/board`
+7. **Final Jeopardy Wagering Calculator** - No link to J! Archive's wagering tool
+
+See [Implementation Plans](#implementation-plans) section below for detailed development guidance.
+
 ## Known Issues & TODOs
-- Media from J! Archive frequently broken (images/audio not always available)
-- No persistent game history beyond JSON files in `/games`
-- State storage is in-memory (resets on server restart - consider Redis for production)
-- No authentication/authorization for host role
-- CORS may need configuration for production deployment
+- **Media Proxy**: Images/audio from J! Archive often broken (proxied through `/media/*` route)
+- **State Persistence**: Games Map is in-memory only - **server restart wipes all game state**
+  - Consider Redis or DB for production
+  - Custom games persist as JSON in `/games/` directory (e.g., `00test.json`)
+- **Authentication**: No auth/authorization for host role - anyone can control game
+- **CORS**: Currently allows localhost:3001-3003 in `server/index.js` - update for production domains
+- **Port Configuration**: Vite config sets port 3000 which conflicts with Express - dev workflow requires running in sequence or separate ports
+- **Avatar Generation**: Uses DiceBear API v7 - may break if API changes
+- **Buzzer Timing**: Early buzz detection relies on client-side timestamps (`Date.now()`) - can be exploited with clock manipulation
 
 ## Architecture Decisions to Preserve
-- **Hash-based routing**: Simplifies SPA deployment (no server routing needed)
-- **React Context over Redux**: Reduced complexity for moderate state; avoid adding Redux without discussion
-- **Vite over Create React App**: Faster build times, modern ES modules
-- **File-based custom games**: Simple approach; consider DB if feature expands
-- **Separate frontend/backend builds**: Frontend builds to `dist/`, served as static from Express
+- **Hash-based routing** (`HashRouter`): Simplifies SPA deployment, no server-side routing config needed
+- **React Context over Redux**: Single `GameProvider` wraps app, sufficient for moderate state complexity
+  - Avoid adding Redux/Zustand without discussion - current pattern works well
+- **Vite over Create React App**: Faster HMR, native ES modules, minimal config
+- **File-based custom games**: JSON files in `/games/` directory, simple CRUD via `/api/games` endpoints
+  - Format: See `games/00test.json` for structure
+  - File naming: `{id}.json` where id is used in `/api/games/:id`
+- **Separate builds**: Frontend builds to `client/src/dist/`, backend serves from `public/`
+- **No TypeScript in backend**: Backend is plain Node.js/Express - keep it that way for consistency
+  - Types only enforced in frontend React code
+- **Cheerio for scraping**: J! Archive HTML parsing via `routes/api.js` - avoid switching to Puppeteer (overhead)
+
+## Debugging Tips
+- **Socket not connecting**: Check browser console for `[Socket] ✓ Connected` message
+  - Verify `VITE_SOCKET_URL` in `.env` matches backend URL
+  - Check CORS origins in `server/index.js` include your dev URL
+- **State not updating**: Look for `gameState:update` events in console
+  - Use React DevTools to inspect GameContext values
+  - Verify `broadcastGameState()` called after backend state changes
+- **Buzzer not working**: Check player's `lockedOutUntil` timestamp in state
+  - Early buzz penalty may still be active
+  - Verify `buzzersOpen: true` in game state when host arms
+- **Daily Double detection**: Backend checks `clue.isDailyDouble` when host opens clue
+  - Auto-transitions to `DAILY_DOUBLE` phase
+  - Check clue data structure has boolean `isDailyDouble` field
+- **Port conflicts**: If Vite won't start, Express may already be on 3000
+  - Change Vite port in `vite.config.ts` or kill Express process first
+
+## Implementation Plans
+
+Detailed plans for implementing missing features from the legacy version.
+
+### Plan 1: Game Browser / Season Selector (CRITICAL)
+
+**Objective**: Allow host to browse and load real J! Archive games
+
+**New Files to Create**:
+- `client/src/components/SeasonsView.tsx` - List all seasons
+- `client/src/components/SeasonDetailView.tsx` - List games in a season
+- `client/src/components/GamePreviewModal.tsx` - Show game info before loading
+
+**Files to Modify**:
+- `client/src/App.tsx` - Add routes for `/seasons` and `/seasons/:id`
+- `client/src/services/gameService.tsx` - Add `loadGameFromApi(gameId)` method
+- `client/src/components/HostView.tsx` - Add "Browse Games" button
+
+**Backend Integration**:
+- Endpoints already exist and functional:
+  - `GET /api/seasons` - Returns array of seasons with custom games at top (id='00')
+  - `GET /api/seasons/:id` - Returns games in season (or custom games if id='00')
+  - `GET /api/games/:id` - Returns full game data
+  - `DELETE /api/games/:id` - Delete custom game (id must start with 'custom_' or '00')
+
+**Data Transformation Required**:
+J! Archive format uses legacy structure (e.g., `clue_J_1_1`, `category_J_1`). Need converter:
+```typescript
+// Convert legacy format to new Category[] structure
+function convertLegacyGame(legacyData: any): Category[] {
+  // Parse clue_J_1_1 → round='J', category=1, clue=1
+  // Parse category_J_1 → round='J', category=1
+  // Build Category[] with nested Clue[]
+  // Handle FJ separately (single category with 1 clue)
+}
+```
+
+**Implementation Steps**:
+1. Create `SeasonsView.tsx`:
+   - Fetch `/api/seasons` on mount
+   - Render table with columns: Name, Description, Note
+   - Highlight "Custom Games" row (id='00') with different styling
+   - Link to `/seasons/:id` on row click
+2. Create `SeasonDetailView.tsx`:
+   - Fetch `/api/seasons/:seasonId` on mount
+   - Show game list with: Game Title, Comments, Completeness indicator
+   - If seasonId='00', show delete buttons for custom games
+   - Click game → show preview modal
+3. Create `GamePreviewModal.tsx`:
+   - Display game metadata (title, comments, completeness)
+   - Show category names for J, DJ, FJ rounds
+   - "Load Game" button → calls `loadGameFromApi(gameId)` → navigates to `/host`
+4. Add converter utility `utils/legacyGameConverter.ts`:
+   - Parse legacy key patterns (`clue_J_2_3` = Jeopardy, Cat 2, Clue 3)
+   - Map to new format with proper typing
+   - Handle Daily Doubles (check `daily_double` boolean)
+   - Handle media URLs (convert J! Archive URLs to proxy URLs)
+5. Update `gameService.tsx`:
+   - Add `loadGameFromApi(gameId: string)` method
+   - Fetch game data, convert format, emit socket event to load categories
+   - Backend socket handler: Add `host:loadGame` event that accepts Category[]
+
+**Edge Cases**:
+- Games with missing clues (check `game_complete` flag)
+- Media URLs may be broken (show placeholder or hide)
+- Custom game format differs from J! Archive format (check ID prefix)
 
 ---
-**Last Updated**: January 2026 | **Branch**: feature/v2-overhaul
+
+### Plan 2: Game Editor (CRITICAL)
+
+**Objective**: Create/edit custom games through UI
+
+**New Files to Create**:
+- `client/src/components/EditorView.tsx` - Main editor interface
+- `client/src/components/EditorRoundSelector.tsx` - Switch between J/DJ/FJ
+- `client/src/components/EditorCategoryPanel.tsx` - Edit category metadata
+- `client/src/components/EditorCluePanel.tsx` - Edit individual clues
+
+**Files to Modify**:
+- `client/src/App.tsx` - Add route `/editor/:id?` (optional ID for editing existing)
+- Backend uses existing endpoints: `POST /api/games`, `DELETE /api/games/:id`
+
+**Data Model**:
+Custom game JSON format (see `games/00test.json`):
+```typescript
+interface CustomGame {
+  id: string; // 'custom_TIMESTAMP' or '00XXX'
+  game_title: string;
+  game_comments: string;
+  game_complete: boolean;
+  // Legacy key format: category_J_1, clue_J_1_1, etc.
+  [key: string]: any; // Dynamic keys for categories/clues
+}
+```
+
+**Implementation Steps**:
+1. Create `EditorView.tsx` structure:
+   - Left sidebar: Round selector (J, DJ, FJ) + Category list
+   - Center panel: Selected category title + clue grid (5 clues for J/DJ, 1 for FJ)
+   - Right panel: Clue editor (question, answer, value, Daily Double checkbox)
+   - Top bar: Game title input, Save/Save As/Import/Export/Delete buttons
+2. State management:
+   - Use `useState` for editor-local state (not GameContext)
+   - Store as legacy format for backend compatibility
+   - Convert to/from new format only when loading into game
+3. Initialize empty template:
+   - 6 categories × 5 clues for J round (values: 200-1000)
+   - 6 categories × 5 clues for DJ round (values: 400-2000)
+   - 1 category × 1 clue for FJ (value: 0)
+4. Load existing game:
+   - If `:id` in route, fetch `/api/games/:id`
+   - Populate editor state
+5. Save functionality:
+   - Validate: All clues have question + answer
+   - POST to `/api/games` with full game object
+   - Set `game_complete: true` if all 61 clues filled
+6. Import/Export:
+   - Export: Download JSON file (`jeopardy_game_${id}.json`)
+   - Import: File input → `FileReader` → parse JSON → populate state
+7. Delete:
+   - Only for custom games (ID starts with 'custom_' or '00')
+   - Confirm dialog → DELETE `/api/games/:id` → navigate to `/seasons/00`
+
+**UI/UX Considerations**:
+- Auto-save draft to localStorage every 30s (prevent data loss)
+- Keyboard shortcuts: Ctrl+S to save, Tab to move between fields
+- Visual indicator for Daily Doubles (red badge)
+- Character counter for long questions/answers
+- Preview mode to see how clue looks in game
+
+---
+
+### Plan 3: Media Support in Clues (HIGH)
+
+**Objective**: Display images/audio from J! Archive in clue display
+
+**Files to Modify**:
+- `client/src/components/HostView.tsx` - Render media in clue modal
+- `client/src/components/BoardView.tsx` - Render media in board clue display
+- `client/src/types.ts` - Add `media?: string[]` to Clue interface (already exists in backend)
+
+**Backend (Already Complete)**:
+- `/media/*` proxy in `server/routes/proxy.js` handles J! Archive media
+- Clue data from `/api/games/:id` includes `media` array with proxied URLs
+
+**Implementation Steps**:
+1. Update Clue interface:
+   ```typescript
+   interface Clue {
+     // ... existing fields
+     media?: string[]; // URLs to images/audio (proxied)
+   }
+   ```
+2. In HostView modal, after question text:
+   ```tsx
+   {activeClue.media && (
+     <div className="flex gap-2 flex-wrap">
+       {activeClue.media.map((url, i) => (
+         url.endsWith('.mp3') || url.endsWith('.wav') ? (
+           <audio key={i} controls src={url} className="w-full" />
+         ) : (
+           <img key={i} src={url} alt="Clue media" 
+                className="max-w-xs rounded border" 
+                onError={(e) => e.currentTarget.style.display = 'none'} />
+         )
+       ))}
+     </div>
+   )}
+   ```
+3. In BoardView (legacy-angular/js/controllers/boardclue.js reference):
+   - Same rendering logic in board clue modal
+4. Handle errors:
+   - Many J! Archive media URLs are broken (404s)
+   - Use `onError` to hide broken images gracefully
+   - Show placeholder text: "Media unavailable"
+
+**Testing**:
+- Find game with known media (search J! Archive for image/audio categories)
+- Test proxy functionality: `http://localhost:3000/media/j-archive.com/media/2023_04_10_J_01.jpg`
+
+---
+
+### Plan 4: Between-Rounds Score Display (HIGH)
+
+**Objective**: Full-screen score ceremony after round ends
+
+**Files to Modify**:
+- `client/src/components/BoardView.tsx` - Add score display mode
+- `server/sockets/gameSocket.js` - Add `host:endRound` event
+
+**Implementation Steps**:
+1. Add new GamePhase: `ROUND_END = 'ROUND_END'`
+2. Update `types.ts`:
+   ```typescript
+   enum GamePhase {
+     // ... existing
+     ROUND_END = 'ROUND_END', // Between rounds, showing scores
+   }
+   ```
+3. Add socket event `host:endRound`:
+   - Backend transitions to `ROUND_END` phase
+   - Broadcasts state update
+4. In BoardView, detect phase:
+   ```tsx
+   {phase === GamePhase.ROUND_END && (
+     <div className="h-full flex flex-col items-center justify-center bg-blue-900">
+       <h1 className="text-6xl font-bold text-yellow-400 mb-12">
+         {round === 'JEOPARDY' ? 'END OF JEOPARDY ROUND' : 'END OF DOUBLE JEOPARDY'}
+       </h1>
+       <div className="grid grid-cols-3 gap-8 max-w-5xl">
+         {players.map(p => (
+           <div key={p.id} className="text-center">
+             <div className="text-3xl font-bold text-white mb-2">{p.name}</div>
+             <div className={`text-6xl font-mono font-bold ${p.score < 0 ? 'text-red-400' : 'text-green-400'}`}>
+               ${p.score}
+             </div>
+           </div>
+         ))}
+       </div>
+     </div>
+   )}
+   ```
+5. Add "Continue" button in HostView when `phase === ROUND_END`:
+   - Triggers next round start (DJ or FJ)
+6. Auto-transition after 5 seconds (optional)
+
+---
+
+### Plan 5: Minor Enhancements (LOW Priority)
+
+**Triple Stumper Indicators**:
+- Clue interface already supports `tripleStumper?: boolean`
+- In HostView clue button, add badge:
+  ```tsx
+  {clue.tripleStumper && (
+    <span className="absolute top-1 left-1 text-[9px] font-black bg-red-500 text-white px-1.5 py-0.5 rounded">TS</span>
+  )}
+  ```
+
+**"Open Board" Button**:
+- Add to HostView top bar:
+  ```tsx
+  <button onClick={() => window.open('/#/board', '_blank')}>
+    Open Board in New Window
+  </button>
+  ```
+
+**FJ Wagering Calculator Link**:
+- In HostView Final Jeopardy phase, add link:
+  ```tsx
+  <a href={`http://www.j-archive.com/wageringcalculator.php?${buildQueryString(players)}`} 
+     target="_blank" className="text-blue-500 underline">
+    Optimal Wagering Calculator
+  </a>
+  ```
+  Where `buildQueryString` formats player names and scores for J! Archive's calculator
+
+---
+
+## Development Priority Order
+
+**Phase 1** (Critical for Real Gameplay):
+1. Game Browser/Season Selector (1-2 days)
+2. Legacy game format converter utility (1 day)
+3. Load game into active session (0.5 days)
+
+**Phase 2** (Enable Custom Content):
+4. Game Editor UI (2-3 days)
+5. Import/Export functionality (0.5 days)
+
+**Phase 3** (Polish):
+6. Media rendering in clues (0.5 days)
+7. Between-rounds score display (0.5 days)
+8. Minor enhancements (0.5 days)
+
+**Total Estimated Effort**: 7-10 days for complete feature parity
+
+---
+**Last Updated**: January 26, 2026 | **Branch**: feature/v2-overhaul

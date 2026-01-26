@@ -22,8 +22,6 @@
   - `routes/api.js` - Scrapes J! Archive, exports seasons/games as JSON (Cheerio HTML parsing)
   - `routes/proxy.js` - Media proxy for J! Archive
   - `sockets/gameSocket.js` - Socket.IO v2 event handlers
-  - `controllers/` - Business logic (expandable)
-  - `utils/` - Shared utilities (expandable)
 - **Games Data** (`games/`) - JSON files with game definitions (e.g., `00test.json`)
 
 ### Frontend Architecture (React v2)
@@ -247,6 +245,7 @@ See [Implementation Plans](#implementation-plans) section below for detailed dev
 - **CORS**: Currently allows localhost:5173 and 3001-3003 in `server/index.js` - update for production domains
 - **Avatar Generation**: Uses DiceBear API v7 - may break if API changes
 - **Buzzer Timing**: Early buzz detection relies on client-side timestamps (`Date.now()`) - can be exploited with clock manipulation
+- **Production Config**: Basic production config added (compression, trust proxy) - consider adding rate limiting, helmet.js, etc.
 
 ## Architecture Decisions to Preserve
 - **Hash-based routing** (`HashRouter`): Simplifies SPA deployment, no server-side routing config needed

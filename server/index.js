@@ -45,8 +45,10 @@ if (app.get('env') === 'development') {
 
 // production only
 if (app.get('env') === 'production') {
-  // TODO
-};
+  // Production configuration
+  app.use(require('compression')());
+  app.set('trust proxy', 1);
+}
 
 
 /**

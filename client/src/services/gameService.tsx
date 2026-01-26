@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode, PropsWithChildren } from 'react';
 import { GameState, GamePhase, Player, BuzzerStatus, INITIAL_CATEGORIES, Category, GameRound } from '../types';
 import { io, Socket } from 'socket.io-client';
+import { convertLegacyGame } from '../utils/legacyGameConverter';
 
 interface GameContextType {
   gameState: GameState;
@@ -29,6 +30,7 @@ interface GameContextType {
   setDailyDoubleConfig: (playerId: string | null, wager: number | null) => void;
   resolveDailyDouble: (correct: boolean) => void;
   loadCategories: (categories: Category[]) => void;
+  loadGameFromApi: (gameId: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -295,6 +297,59 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     });
   }, [currentGameId, gameState.round]);
 
+  const loadGameFromApi = useCallback(async (gameId: string) => {
+    try {
+      console.log(`[GameService] Loading game from API: ${gameId}`);
+      
+      // Fetch game data from backend
+      const response = await fetch(`/api/games/${gameId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch game: ${response.statusText}`);
+      }
+      
+      const legacyGameData = await response.json();
+      console.log('[GameService] Received legacy game data:', legacyGameData);
+      
+      // Convert legacy format to new Category[] structure
+      const categories = convertLegacyGame(legacyGameData);
+      console.log('[GameService] Converted to categories:', categories);
+      
+      if (!socketRef.current) {
+        throw new Error('Socket not connected');
+      }
+      
+      // Reset game first
+      socketRef.current.emit('host:resetGame', { gameId: currentGameId });
+      
+      // Wait a moment for reset to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Load Jeopardy round categories
+      const jeopardyCategories = categories.filter(c => c.id.startsWith('j-'));
+      if (jeopardyCategories.length > 0) {
+        console.log('[GameService] Loading Jeopardy categories:', jeopardyCategories);
+        socketRef.current.emit('host:startRound', {
+          gameId: currentGameId,
+          round: 'JEOPARDY',
+          categories: jeopardyCategories
+        });
+      }
+      
+      // Store DJ and FJ categories for later use
+      // (They'll be loaded when host clicks "Start Double" or "Start Final")
+      // For now, just log that they're ready
+      const djCategories = categories.filter(c => c.id.startsWith('dj-'));
+      const fjCategories = categories.filter(c => c.id.startsWith('fj-'));
+      console.log('[GameService] Double Jeopardy categories ready:', djCategories.length);
+      console.log('[GameService] Final Jeopardy categories ready:', fjCategories.length);
+      
+      console.log('[GameService] Game loaded successfully');
+    } catch (error) {
+      console.error('[GameService] Error loading game:', error);
+      throw error;
+    }
+  }, [currentGameId]);
+
   return (
     <GameContext.Provider value={{
       gameState,
@@ -320,7 +375,8 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       revealPlayerFinal,
       setDailyDoubleConfig,
       resolveDailyDouble,
-      loadCategories
+      loadCategories,
+      loadGameFromApi
     }}>
       {children}
     </GameContext.Provider>

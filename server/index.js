@@ -18,7 +18,7 @@ var app = module.exports = express();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server, {
   cors: {
-    origin: ["http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://127.0.0.1:3001", "http://127.0.0.1:3002", "http://127.0.0.1:3003"],
+    origin: ["http://localhost:5173", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://127.0.0.1:5173", "http://127.0.0.1:3001", "http://127.0.0.1:3002", "http://127.0.0.1:3003"],
     methods: ["GET", "POST"],
     credentials: true
   }

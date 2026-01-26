@@ -5,6 +5,8 @@ import BoardView from './components/BoardView';
 import PlayerView from './components/PlayerView';
 import HostView from './components/HostView';
 import DeveloperView from './components/DeveloperView';
+import SeasonsView from './components/SeasonsView';
+import SeasonDetailView from './components/SeasonDetailView';
 
 const Navigation = () => {
   const location = useLocation();
@@ -64,6 +66,8 @@ const App: React.FC = () => {
           <Route path="/play" element={<PlayerView />} />
           <Route path="/host" element={<HostView />} />
           <Route path="/dev" element={<DeveloperView />} />
+          <Route path="/seasons" element={<SeasonsView />} />
+          <Route path="/seasons/:seasonId" element={<SeasonDetailView />} />
         </Routes>
       </HashRouter>
     </GameProvider>

@@ -18,9 +18,9 @@
   - Automatic state broadcasting to all connected clients
   - Intelligent buzzer logic with lockouts and penalties
 - **Server Structure** (`server/`):
+  - `routes/index.js` - Root route handlers (legacy compatibility messages)
   - `routes/api.js` - Scrapes J! Archive, exports seasons/games as JSON (Cheerio HTML parsing)
   - `routes/proxy.js` - Media proxy for J! Archive
-  - `routes/index.js` - Root route handlers
   - `sockets/gameSocket.js` - Socket.IO v2 event handlers
   - `controllers/` - Business logic (expandable)
   - `utils/` - Shared utilities (expandable)
@@ -128,10 +128,10 @@ npm install              # Client dependencies (React, Vite)
 cd ../..
 npm start                # Starts backend on port 3000
 # In separate terminal, from client/src:
-npm run dev              # Vite dev server on port 3000 (same as backend)
+npm run dev              # Vite dev server on port 5173 (proxies API to port 3000)
 ```
 
-**Important**: Both frontend and backend run on port 3000 - Vite serves the React app directly, not via proxy. Backend Socket.IO and REST API run on the same server instance.
+**Important**: Frontend runs on port 5173, backend on port 3000. Vite proxies `/api/*` and `/media/*` requests to the Express backend. Socket.IO connects directly to port 3000.
 
 ### Build
 ```bash
@@ -150,10 +150,12 @@ docker run -p 3000:3000 jeopardy
 - [server/sockets/gameSocket.js](server/sockets/gameSocket.js) - Socket.IO event handlers (v2)
 - [server/routes/api.js](server/routes/api.js) - J! Archive scraping logic (Cheerio)
 - [server/routes/proxy.js](server/routes/proxy.js) - Media proxy
+- [server/routes/index.js](server/routes/index.js) - Root route handlers (legacy compatibility)
 - [client/src/App.tsx](client/src/App.tsx) - React Router entry, navigation
 - [client/src/services/gameService.tsx](client/src/services/gameService.tsx) - State management with Socket.IO
 - [client/src/types.ts](client/src/types.ts) - Central type definitions
 - [client/src/components/\*.tsx](client/src/components) - UI views
+- [client/src/utils/legacyGameConverter.ts](client/src/utils/legacyGameConverter.ts) - Convert J! Archive format to Category[]
 
 ## Common Tasks
 
@@ -181,8 +183,8 @@ Socket.IO integration is complete and functional:
 4. Broadcast updated state with `broadcastGameState(io, gameId)` at end of handler
 
 ### Adding Game Data Endpoint
-1. Add handler in [routes/api.js](routes/api.js) or new file in `server/`
-2. Register route in [routes/index.js](routes/index.js)
+1. Add handler in [server/routes/api.js](server/routes/api.js) or new file in `server/routes/`
+2. Register route in [server/index.js](server/index.js) (routes are imported from `server/routes/`)
 3. Frontend fetches via `fetch('/api/endpoint')` in `gameService.tsx`
 
 ## Missing Features from Legacy Version
@@ -219,8 +221,7 @@ See [Implementation Plans](#implementation-plans) section below for detailed dev
   - Consider Redis or DB for production
   - Custom games persist as JSON in `/games/` directory (e.g., `00test.json`)
 - **Authentication**: No auth/authorization for host role - anyone can control game
-- **CORS**: Currently allows localhost:3001-3003 in `server/index.js` - update for production domains
-- **Port Configuration**: Vite config sets port 3000 which conflicts with Express - dev workflow requires running in sequence or separate ports
+- **CORS**: Currently allows localhost:5173 and 3001-3003 in `server/index.js` - update for production domains
 - **Avatar Generation**: Uses DiceBear API v7 - may break if API changes
 - **Buzzer Timing**: Early buzz detection relies on client-side timestamps (`Date.now()`) - can be exploited with clock manipulation
 
@@ -240,7 +241,11 @@ See [Implementation Plans](#implementation-plans) section below for detailed dev
 ## Debugging Tips
 - **Socket not connecting**: Check browser console for `[Socket] ✓ Connected` message
   - Verify `VITE_SOCKET_URL` in `.env` matches backend URL
-  - Check CORS origins in `server/index.js` include your dev URL
+  - Check CSocket.IO connects to `http://localhost:3000` (backend port)
+  - Check CORS origins in `server/index.js` include `http://localhost:5173` (Vite dev server)
+- **API requests failing**: Check browser Network tab
+  - Vite should proxy `/api/*` and `/media/*` to `http://localhost:3000`
+  - Verify both backend (port 3000) and Vite (port 5173) are running
 - **State not updating**: Look for `gameState:update` events in console
   - Use React DevTools to inspect GameContext values
   - Verify `broadcastGameState()` called after backend state changes
@@ -250,9 +255,6 @@ See [Implementation Plans](#implementation-plans) section below for detailed dev
 - **Daily Double detection**: Backend checks `clue.isDailyDouble` when host opens clue
   - Auto-transitions to `DAILY_DOUBLE` phase
   - Check clue data structure has boolean `isDailyDouble` field
-- **Port conflicts**: If Vite won't start, Express may already be on 3000
-  - Change Vite port in `vite.config.ts` or kill Express process first
-
 ## Implementation Plans
 
 Detailed plans for implementing missing features from the legacy version.

@@ -35,6 +35,8 @@ export interface Clue {
   answer: string;
   isDailyDouble: boolean;
   isCompleted: boolean;
+  tripleStumper?: boolean; // Was a triple stumper in the actual show
+  media?: string[]; // URLs to images/audio (proxied through /media/*)
 }
 
 export interface Category {

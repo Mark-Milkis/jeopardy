@@ -24,6 +24,31 @@ const BoardView: React.FC = () => {
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 relative flex items-center justify-center min-h-0">
         
+        {/* ROUND END SCORE DISPLAY */}
+        {phase === GamePhase.ROUND_END && (
+          <div className="absolute inset-0 bg-gradient-to-b from-blue-900 to-blue-950 z-50 flex flex-col items-center justify-center px-12 animate-in fade-in duration-500">
+            <h1 className="text-6xl md:text-8xl font-bold text-yellow-400 mb-16 uppercase tracking-wider animate-in slide-in-from-top duration-700" style={{ fontFamily: "'Fjalla One', sans-serif", textShadow: '6px 6px 0 #000000' }}>
+              {round === 'JEOPARDY' ? 'End of Jeopardy Round' : round === 'DOUBLE_JEOPARDY' ? 'End of Double Jeopardy' : 'Scores'}
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
+              {players.map((p, idx) => (
+                <div 
+                  key={p.id} 
+                  className="flex flex-col items-center p-8 bg-blue-800 bg-opacity-40 rounded-2xl border-4 border-blue-700 shadow-2xl animate-in zoom-in duration-500"
+                  style={{ animationDelay: `${idx * 150}ms` }}
+                >
+                  <div className="text-3xl md:text-4xl font-bold text-white mb-4 text-center uppercase tracking-wide" style={{ fontFamily: "'Fjalla One', sans-serif", textShadow: '3px 3px 0 #000000' }}>
+                    {p.name}
+                  </div>
+                  <div className={`text-6xl md:text-7xl font-mono font-bold ${p.score < 0 ? 'text-red-400' : 'text-green-400'} drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]`} style={{ textShadow: '4px 4px 0 #000000' }}>
+                    ${p.score.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         {/* GRID VIEW */}
         {phase === GamePhase.BOARD && (
           <div className={`

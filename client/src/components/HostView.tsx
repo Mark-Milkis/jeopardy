@@ -21,7 +21,9 @@ const HostView: React.FC = () => {
     setFinalRevealPhase,
     revealPlayerFinal,
     setDailyDoubleConfig,
-    resolveDailyDouble
+    resolveDailyDouble,
+    endRound,
+    continueFromRoundEnd
   } = useGame();
   
   const { categories, players, activeClueId, phase, activePlayerId, round, dailyDoublePlayerId, dailyDoubleWager } = gameState;
@@ -120,20 +122,21 @@ const HostView: React.FC = () => {
                                     Start Jeopardy
                                 </button>
                          )}
-             {round === 'JEOPARDY' && (
+             {/* Round transition button - changes based on phase */}
+             {phase !== GamePhase.FINAL_JEOPARDY && phase !== GamePhase.FINAL_REVEAL && round !== 'FINAL_JEOPARDY' && categories.length > 0 && (
                 <button 
-                  onClick={() => startDoubleJeopardy()} 
-                  className="px-3 py-1 text-xs bg-blue-700 hover:bg-blue-600 text-white border border-blue-500 rounded whitespace-nowrap"
+                  onClick={() => phase === GamePhase.ROUND_END ? continueFromRoundEnd() : endRound()} 
+                  className={`px-3 py-1 text-xs font-bold text-white border rounded whitespace-nowrap ${
+                    phase === GamePhase.ROUND_END 
+                      ? 'bg-green-600 hover:bg-green-500 border-green-400' 
+                      : 'bg-yellow-600 hover:bg-yellow-500 border-yellow-400'
+                  }`}
+                  title={phase === GamePhase.ROUND_END ? 'Start next round' : 'Show between-round score display'}
                 >
-                  Start Double
-                </button>
-             )}
-             {round === 'DOUBLE_JEOPARDY' && (
-                <button 
-                  onClick={() => startFinalJeopardy()} 
-                  className="px-3 py-1 text-xs bg-purple-700 hover:bg-purple-600 text-white border border-purple-500 rounded whitespace-nowrap"
-                >
-                  Start Final
+                  {phase === GamePhase.ROUND_END 
+                    ? (round === 'JEOPARDY' ? 'Start Double Jeopardy' : 'Start Final Jeopardy')
+                    : (round === 'JEOPARDY' ? 'End Jeopardy Round' : 'End Double Jeopardy')
+                  }
                 </button>
              )}
              <button onClick={() => resetGame()} className="px-3 py-1 text-xs text-red-400 hover:text-red-300 border border-red-900 rounded hover:bg-red-900/50 whitespace-nowrap">Reset</button>

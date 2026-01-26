@@ -31,6 +31,8 @@ interface GameContextType {
   resolveDailyDouble: (correct: boolean) => void;
   loadCategories: (categories: Category[]) => void;
   loadGameFromApi: (gameId: string) => Promise<void>;
+  endRound: () => void;
+  continueFromRoundEnd: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -350,6 +352,25 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     }
   }, [currentGameId]);
 
+  const endRound = useCallback(() => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('host:endRound', { gameId: currentGameId });
+  }, [currentGameId]);
+
+  const continueFromRoundEnd = useCallback(() => {
+    if (!socketRef.current) return;
+    
+    // Automatically start the next round based on current round
+    if (gameState.round === 'JEOPARDY') {
+      startDoubleJeopardy();
+    } else if (gameState.round === 'DOUBLE_JEOPARDY') {
+      startFinalJeopardy();
+    } else {
+      // Fallback: just return to board
+      socketRef.current.emit('host:continueFromRoundEnd', { gameId: currentGameId });
+    }
+  }, [currentGameId, gameState.round, startDoubleJeopardy, startFinalJeopardy]);
+
   return (
     <GameContext.Provider value={{
       gameState,
@@ -376,7 +397,9 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       setDailyDoubleConfig,
       resolveDailyDouble,
       loadCategories,
-      loadGameFromApi
+      loadGameFromApi,
+      endRound,
+      continueFromRoundEnd
     }}>
       {children}
     </GameContext.Provider>

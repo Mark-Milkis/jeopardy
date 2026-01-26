@@ -212,13 +212,19 @@ The React v2 rewrite is functional for gameplay but lacks several features from 
    - Routes: `/editor` (new) and `/editor/:id` (edit)
    - Integrated with SeasonDetailView "Create New Game" and "Edit" buttons
 
+3. **Between-Rounds Score Display** - ✓ Fully implemented
+   - Added ROUND_END phase to GamePhase enum (frontend and backend)
+   - Full-screen animated score ceremony on BoardView
+   - Color-coded player scores (green/red)
+   - Round-specific messaging
+   - Streamlined button flow: End Round → displays scores → Start Next Round
+   - Single button in HostView top bar handles round transitions
+   - Socket events: host:endRound, host:continueFromRoundEnd
+
 ### 🟡 HIGH Priority
-3. **Media Support in Clues** - Images/audio from J! Archive not rendered
+4. **Media Support in Clues** - Images/audio from J! Archive not rendered
    - Backend proxy exists at `/media/*`
    - Clue data includes `media` field but frontend doesn't display it
-4. **Between-Rounds Score Display** - No full-screen score ceremony
-   - Legacy showed prominent score display after "End Round"
-   - Currently just switches to next board immediately
 
 ### 🟢 LOW Priority  
 5. **Triple Stumper Indicators** - No "TS" badge on clues
@@ -450,7 +456,30 @@ interface CustomGame {
 
 ---
 
-### Plan 4: Between-Rounds Score Display (HIGH)
+### Plan 4: Between-Rounds Score Display ✅ COMPLETED
+
+**Status**: Fully implemented on January 26, 2026
+
+**Implementation Summary**:
+- Added `ROUND_END` phase to `GamePhase` enum (frontend and backend)
+- Created socket events: `host:endRound`, `host:continueFromRoundEnd`
+- Updated BoardView with full-screen animated score ceremony
+- Consolidated round transition buttons in HostView
+- Implemented smart button that changes based on phase:
+  - During gameplay: "End Jeopardy Round" / "End Double Jeopardy" (yellow)
+  - During ROUND_END: "Start Double Jeopardy" / "Start Final Jeopardy" (green)
+- Auto-advancement to next round when continuing from score display
+
+**Files Modified**:
+- `client/src/types.ts` - Added ROUND_END phase
+- `server/sockets/gameSocket.js` - Added ROUND_END phase and socket handlers
+- `client/src/services/gameService.tsx` - Added endRound() and continueFromRoundEnd() methods
+- `client/src/components/BoardView.tsx` - Added score display overlay
+- `client/src/components/HostView.tsx` - Updated button logic for round transitions
+
+---
+
+### Plan 5: Media Support in Clues (HIGH)
 
 **Objective**: Full-screen score ceremony after round ends
 
@@ -538,12 +567,14 @@ interface CustomGame {
 4. ✅ Game Editor UI - Implemented (EditorView with full CRUD)
 5. ✅ Import/Export functionality - Implemented (JSON file handling)
 
-**Phase 3** (Polish): 🔄 NEXT
-6. Media rendering in clues (0.5 days) - NOT STARTED
-7. Between-rounds score display (0.5 days) - NOT STARTED
+**Phase 3** (Polish): ✅ COMPLETED
+6. ✅ Between-rounds score display - Implemented (January 26, 2026)
+
+**Phase 4** (Remaining Polish): 🔄 NEXT
+7. Media rendering in clues (0.5 days) - NOT STARTED
 8. Minor enhancements (0.5 days) - NOT STARTED
 
-**Remaining Estimated Effort**: 1-2 days for complete feature parity
+**Remaining Estimated Effort**: 1 day for complete feature parity
 
 ---
 **Last Updated**: January 26, 2026 | **Branch**: feature/v2-overhaul

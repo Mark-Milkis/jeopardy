@@ -13,6 +13,7 @@ const GamePhase = {
   BOARD: 'BOARD',
   CLUE: 'CLUE',
   DAILY_DOUBLE: 'DAILY_DOUBLE',
+  ROUND_END: 'ROUND_END',
   FINAL_JEOPARDY: 'FINAL_JEOPARDY',
   FINAL_REVEAL: 'FINAL_REVEAL',
   GAME_OVER: 'GAME_OVER'
@@ -444,6 +445,24 @@ module.exports = function(io) {
       const newGame = createDefaultGameState(gameId);
       games.set(gameId, newGame);
       console.log(`Game ${gameId} reset`);
+      broadcastGameState(io, gameId);
+    });
+    
+    socket.on('host:endRound', ({ gameId }) => {
+      const game = getGame(gameId);
+      game.phase = GamePhase.ROUND_END;
+      game.activeClueId = null;
+      game.buzzersOpen = false;
+      game.activePlayerId = null;
+      console.log(`Round ended for game ${gameId}, showing scores`);
+      broadcastGameState(io, gameId);
+    });
+    
+    socket.on('host:continueFromRoundEnd', ({ gameId }) => {
+      const game = getGame(gameId);
+      // Return to board view to start next round or continue current round
+      game.phase = GamePhase.BOARD;
+      console.log(`Continuing from round end for game ${gameId}`);
       broadcastGameState(io, gameId);
     });
     

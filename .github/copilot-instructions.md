@@ -221,10 +221,15 @@ The React v2 rewrite is functional for gameplay but lacks several features from 
    - Single button in HostView top bar handles round transitions
    - Socket events: host:endRound, host:continueFromRoundEnd
 
-### 🟡 HIGH Priority
-4. **Media Support in Clues** - Images/audio from J! Archive not rendered
-   - Backend proxy exists at `/media/*`
-   - Clue data includes `media` field but frontend doesn't display it
+4. **Media Support in Clues** - ✓ Fully implemented
+   - Image and audio rendering in HostView clue modal
+   - Image and audio rendering in BoardView clue overlay
+   - Graceful error handling for broken/missing media
+   - Visual indicator on BoardView when media fails to load (red warning badge)
+   - Purple media icon on HostView clue tiles indicating media presence
+   - Auto-detection of audio files (mp3, wav, m4a, ogg) vs images
+   - Native HTML5 audio controls for sound clues
+   - Implemented: January 26, 2026
 
 ### 🟢 LOW Priority  
 5. **Triple Stumper Indicators** - No "TS" badge on clues
@@ -234,7 +239,7 @@ The React v2 rewrite is functional for gameplay but lacks several features from 
 See [Implementation Plans](#implementation-plans) section below for detailed development guidance.
 
 ## Known Issues & TODOs
-- **Media Proxy**: Images/audio from J! Archive often broken (proxied through `/media/*` route)
+- **Media Proxy**: Backend proxy at `/media/*` works correctly, but many J! Archive media URLs are broken/404 (handled gracefully with error messages)
 - **State Persistence**: Games Map is in-memory only - **server restart wipes all game state**
   - Consider Redis or DB for production
   - Custom games persist as JSON in `/games/` directory (e.g., `00test.json`)
@@ -406,57 +411,7 @@ interface CustomGame {
 
 ---
 
-### Plan 3: Media Support in Clues (HIGH)
-
-**Objective**: Display images/audio from J! Archive in clue display
-
-**Files to Modify**:
-- `client/src/components/HostView.tsx` - Render media in clue modal
-- `client/src/components/BoardView.tsx` - Render media in board clue display
-- `client/src/types.ts` - Add `media?: string[]` to Clue interface (already exists in backend)
-
-**Backend (Already Complete)**:
-- `/media/*` proxy in `server/routes/proxy.js` handles J! Archive media
-- Clue data from `/api/games/:id` includes `media` array with proxied URLs
-
-**Implementation Steps**:
-1. Update Clue interface:
-   ```typescript
-   interface Clue {
-     // ... existing fields
-     media?: string[]; // URLs to images/audio (proxied)
-   }
-   ```
-2. In HostView modal, after question text:
-   ```tsx
-   {activeClue.media && (
-     <div className="flex gap-2 flex-wrap">
-       {activeClue.media.map((url, i) => (
-         url.endsWith('.mp3') || url.endsWith('.wav') ? (
-           <audio key={i} controls src={url} className="w-full" />
-         ) : (
-           <img key={i} src={url} alt="Clue media" 
-                className="max-w-xs rounded border" 
-                onError={(e) => e.currentTarget.style.display = 'none'} />
-         )
-       ))}
-     </div>
-   )}
-   ```
-3. In BoardView (legacy-angular/js/controllers/boardclue.js reference):
-   - Same rendering logic in board clue modal
-4. Handle errors:
-   - Many J! Archive media URLs are broken (404s)
-   - Use `onError` to hide broken images gracefully
-   - Show placeholder text: "Media unavailable"
-
-**Testing**:
-- Find game with known media (search J! Archive for image/audio categories)
-- Test proxy functionality: `http://localhost:3000/media/j-archive.com/media/2023_04_10_J_01.jpg`
-
----
-
-### Plan 4: Between-Rounds Score Display ✅ COMPLETED
+### Plan 3: Between-Rounds Score Display ✅ COMPLETED
 
 **Status**: Fully implemented on January 26, 2026
 
@@ -525,7 +480,7 @@ interface CustomGame {
 
 ---
 
-### Plan 5: Minor Enhancements (LOW Priority)
+### Plan 4: Minor Enhancements (LOW Priority)
 
 **Triple Stumper Indicators**:
 - Clue interface already supports `tripleStumper?: boolean`
@@ -570,11 +525,18 @@ interface CustomGame {
 **Phase 3** (Polish): ✅ COMPLETED
 6. ✅ Between-rounds score display - Implemented (January 26, 2026)
 
-**Phase 4** (Remaining Polish): 🔄 NEXT
-7. Media rendering in clues (0.5 days) - NOT STARTED
-8. Minor enhancements (0.5 days) - NOT STARTED
+**Phase 4** (Media Support): ✅ COMPLETED
+7. ✅ Media rendering in clues - Implemented (January 26, 2026)
+   - Image/audio display in HostView and BoardView
+   - Graceful error handling for broken media
+   - Visual indicators for media presence and failures
 
-**Remaining Estimated Effort**: 1 day for complete feature parity
+**Phase 5** (Minor Enhancements): 🔄 NEXT
+8. Triple Stumper indicators (0.25 days) - NOT STARTED
+9. "Open Board" button (0.1 days) - NOT STARTED
+10. FJ Wagering Calculator link (0.15 days) - NOT STARTED
+
+**Remaining Estimated Effort**: 0.5 days for complete feature parity
 
 ---
 **Last Updated**: January 26, 2026 | **Branch**: feature/v2-overhaul

@@ -271,6 +271,13 @@ const HostView: React.FC = () => {
                                 {clue.isDailyDouble && !clue.isCompleted && (
                                     <span className="absolute top-1 right-1 text-[9px] font-black bg-red-500 text-white px-1.5 py-0.5 rounded shadow-sm tracking-tighter">DD</span>
                                 )}
+                                {clue.media && clue.media.length > 0 && !clue.isCompleted && (
+                                    <span className="absolute top-1 left-1 text-white bg-purple-600 rounded shadow-sm p-0.5" title="Has media">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                        </svg>
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -348,6 +355,52 @@ const HostView: React.FC = () => {
                               <div>
                                   <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-2">Question</span>
                                   <p className="text-2xl font-serif">{activeClue.question}</p>
+                                  
+                                  {/* Media Display */}
+                                  {activeClue.media && activeClue.media.length > 0 && (
+                                      <div className="mt-4 flex flex-col gap-3">
+                                          {activeClue.media.map((url, i) => {
+                                              const isAudio = url.endsWith('.mp3') || url.endsWith('.wav') || url.endsWith('.m4a') || url.endsWith('.ogg');
+                                              return isAudio ? (
+                                                  <audio 
+                                                      key={i} 
+                                                      controls 
+                                                      src={url} 
+                                                      className="w-full rounded border border-gray-200"
+                                                      onError={(e) => {
+                                                          const target = e.currentTarget;
+                                                          target.style.display = 'none';
+                                                          const parent = target.parentElement;
+                                                          if (parent && !parent.querySelector('.media-error')) {
+                                                              const errorMsg = document.createElement('div');
+                                                              errorMsg.className = 'media-error text-sm text-gray-400 italic p-2 bg-gray-50 rounded';
+                                                              errorMsg.textContent = 'Audio unavailable';
+                                                              parent.appendChild(errorMsg);
+                                                          }
+                                                      }}
+                                                  />
+                                              ) : (
+                                                  <img 
+                                                      key={i} 
+                                                      src={url} 
+                                                      alt="Clue media" 
+                                                      className="max-w-full h-auto rounded border border-gray-200"
+                                                      onError={(e) => {
+                                                          const target = e.currentTarget;
+                                                          target.style.display = 'none';
+                                                          const parent = target.parentElement;
+                                                          if (parent && !parent.querySelector('.media-error')) {
+                                                              const errorMsg = document.createElement('div');
+                                                              errorMsg.className = 'media-error text-sm text-gray-400 italic p-2 bg-gray-50 rounded';
+                                                              errorMsg.textContent = 'Image unavailable';
+                                                              parent.appendChild(errorMsg);
+                                                          }
+                                                      }}
+                                                  />
+                                              );
+                                          })}
+                                      </div>
+                                  )}
                               </div>
                               
                               <div className="bg-green-50 p-4 rounded border border-green-100">
@@ -400,6 +453,52 @@ const HostView: React.FC = () => {
                         <div className="text-2xl md:text-4xl font-serif text-gray-800 leading-relaxed">
                             {activeClue.question}
                         </div>
+                        
+                        {/* Media Display */}
+                        {activeClue.media && activeClue.media.length > 0 && (
+                            <div className="mt-6 flex flex-col gap-3">
+                                {activeClue.media.map((url, i) => {
+                                    const isAudio = url.endsWith('.mp3') || url.endsWith('.wav') || url.endsWith('.m4a') || url.endsWith('.ogg');
+                                    return isAudio ? (
+                                        <audio 
+                                            key={i} 
+                                            controls 
+                                            src={url} 
+                                            className="w-full rounded border border-gray-300 shadow-sm"
+                                            onError={(e) => {
+                                                const target = e.currentTarget;
+                                                target.style.display = 'none';
+                                                const parent = target.parentElement;
+                                                if (parent && !parent.querySelector('.media-error')) {
+                                                    const errorMsg = document.createElement('div');
+                                                    errorMsg.className = 'media-error text-sm text-gray-400 italic p-3 bg-gray-100 rounded border border-gray-200';
+                                                    errorMsg.textContent = 'Audio unavailable';
+                                                    parent.appendChild(errorMsg);
+                                                }
+                                            }}
+                                        />
+                                    ) : (
+                                        <img 
+                                            key={i} 
+                                            src={url} 
+                                            alt="Clue media" 
+                                            className="max-w-full h-auto rounded border border-gray-300 shadow-lg"
+                                            onError={(e) => {
+                                                const target = e.currentTarget;
+                                                target.style.display = 'none';
+                                                const parent = target.parentElement;
+                                                if (parent && !parent.querySelector('.media-error')) {
+                                                    const errorMsg = document.createElement('div');
+                                                    errorMsg.className = 'media-error text-sm text-gray-400 italic p-3 bg-gray-100 rounded border border-gray-200';
+                                                    errorMsg.textContent = 'Image unavailable';
+                                                    parent.appendChild(errorMsg);
+                                                }
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     {/* Answer Card */}

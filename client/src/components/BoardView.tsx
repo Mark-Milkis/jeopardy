@@ -112,10 +112,59 @@ const BoardView: React.FC = () => {
                </div>
              ) : (
                 // QUESTION MODE
-               <div className="max-w-5xl">
+               <div className="max-w-5xl flex flex-col gap-8 items-center">
                  <p className="text-white font-bold leading-tight uppercase" style={{ fontSize: '6vh', textShadow: '4px 4px #000000' }}>
                    {activeClue.question}
                  </p>
+                 
+                 {/* Media Display */}
+                 {activeClue.media && activeClue.media.length > 0 && (
+                   <div className="flex flex-col gap-6 w-full items-center">
+                     {activeClue.media.map((url, i) => {
+                       const isAudio = url.endsWith('.mp3') || url.endsWith('.wav') || url.endsWith('.m4a') || url.endsWith('.ogg');
+                       return isAudio ? (
+                         <audio 
+                           key={i} 
+                           controls 
+                           src={url} 
+                           className="w-full max-w-2xl rounded-lg border-4 border-white shadow-2xl"
+                           style={{ backgroundColor: '#fff' }}
+                           onError={(e) => {
+                             const target = e.currentTarget;
+                             target.style.display = 'none';
+                             const parent = target.parentElement;
+                             if (parent && !parent.querySelector('.media-error-board')) {
+                               const errorMsg = document.createElement('div');
+                               errorMsg.className = 'media-error-board bg-red-600 text-white px-8 py-4 rounded-lg border-4 border-red-400 text-2xl font-bold uppercase tracking-wider';
+                               errorMsg.style.textShadow = '2px 2px 0 #000';
+                               errorMsg.textContent = '⚠️ Audio Unavailable';
+                               parent.appendChild(errorMsg);
+                             }
+                           }}
+                         />
+                       ) : (
+                         <img 
+                           key={i} 
+                           src={url} 
+                           alt="Clue media" 
+                           className="max-w-3xl max-h-[40vh] rounded-lg border-4 border-white shadow-2xl"
+                           onError={(e) => {
+                             const target = e.currentTarget;
+                             target.style.display = 'none';
+                             const parent = target.parentElement;
+                             if (parent && !parent.querySelector('.media-error-board')) {
+                               const errorMsg = document.createElement('div');
+                               errorMsg.className = 'media-error-board bg-red-600 text-white px-8 py-4 rounded-lg border-4 border-red-400 text-2xl font-bold uppercase tracking-wider';
+                               errorMsg.style.textShadow = '2px 2px 0 #000';
+                               errorMsg.textContent = '⚠️ Image Unavailable';
+                               parent.appendChild(errorMsg);
+                             }
+                           }}
+                         />
+                       );
+                     })}
+                   </div>
+                 )}
                </div>
              )}
           </div>

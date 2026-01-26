@@ -3,18 +3,19 @@ import { useGame } from '../services/gameService';
 import { GamePhase, BuzzerStatus } from '../types';
 
 const PlayerView: React.FC = () => {
-  const { gameState, joinGame, buzz, submitWager, submitFinalAnswer } = useGame();
-  const [playerId, setPlayerId] = useState<string | null>(null);
+  const { gameState, joinGame, buzz, submitWager, submitFinalAnswer, currentPlayerId, isConnected } = useGame();
   const [name, setName] = useState('');
   // Use a dedicated state for forcing re-renders during countdown
   const [, setTick] = useState(0);
+  
+  console.log('[PlayerView] Render - isConnected:', isConnected, 'currentPlayerId:', currentPlayerId);
 
   // Input states
   const [wagerInput, setWagerInput] = useState('');
   const [answerInput, setAnswerInput] = useState('');
 
   // Always derive player state at top level
-  const player = playerId ? gameState.players.find(p => p.id === playerId) : undefined;
+  const player = currentPlayerId ? gameState.players.find(p => p.id === currentPlayerId) : undefined;
   
   // Calculate Penalty State
   const now = Date.now();
@@ -46,9 +47,12 @@ const PlayerView: React.FC = () => {
   // Handle Join
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[PlayerView] Join button clicked, name:', name);
     if (name.trim()) {
-      const id = joinGame(name);
-      setPlayerId(id);
+      console.log('[PlayerView] Calling joinGame with name:', name);
+      joinGame(name);
+    } else {
+      console.warn('[PlayerView] Name is empty, not joining');
     }
   };
 
@@ -81,10 +85,17 @@ const PlayerView: React.FC = () => {
   // --- RENDER LOGIC ---
 
   // 1. Join Screen
-  if (!playerId) {
+  if (!currentPlayerId) {
     return (
       <div className="h-full w-full bg-[#060CE9] flex flex-col items-center justify-center p-6 text-white">
         <h1 className="text-4xl font-serif text-[#FFCC00] mb-8 drop-shadow-md">Jeopardy!</h1>
+        
+        {/* Connection Status Indicator */}
+        <div className="mb-4 flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+          <span className="text-sm">{isConnected ? 'Connected' : 'Connecting to server...'}</span>
+        </div>
+        
         <form onSubmit={handleJoin} className="w-full max-w-sm flex flex-col gap-4">
           <label className="text-lg font-bold">Enter your Name</label>
           <input 
@@ -95,7 +106,11 @@ const PlayerView: React.FC = () => {
             placeholder="NICKNAME"
             maxLength={10}
           />
-          <button type="submit" className="bg-[#FFCC00] text-[#060CE9] p-4 rounded font-bold text-xl uppercase shadow-lg active:scale-95 transition-transform">
+          <button 
+            type="submit" 
+            disabled={!isConnected || !name.trim()}
+            className="bg-[#FFCC00] text-[#060CE9] p-4 rounded font-bold text-xl uppercase shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             Join Game
           </button>
         </form>

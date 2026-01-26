@@ -13,6 +13,7 @@ const HostView: React.FC = () => {
     updateScore, 
     skipClue, 
     resetGame,
+        startJeopardy,
     startDoubleJeopardy,
     startFinalJeopardy,
     updateSettings,
@@ -103,6 +104,14 @@ const HostView: React.FC = () => {
         ))}
 
         <div className="ml-auto flex items-center gap-2">
+                         {round === 'JEOPARDY' && categories.length === 0 && (
+                                <button 
+                                    onClick={() => startJeopardy()} 
+                                    className="px-3 py-1 text-xs bg-blue-700 hover:bg-blue-600 text-white border border-blue-500 rounded whitespace-nowrap"
+                                >
+                                    Start Jeopardy
+                                </button>
+                         )}
              {round === 'JEOPARDY' && (
                 <button 
                   onClick={() => startDoubleJeopardy()} 

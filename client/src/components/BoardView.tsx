@@ -24,6 +24,36 @@ const BoardView: React.FC = () => {
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 relative flex items-center justify-center min-h-0">
         
+        {/* GAME OVER FINAL SCORE DISPLAY */}
+        {phase === GamePhase.GAME_OVER && (
+          <div className="absolute inset-0 bg-gradient-to-b from-indigo-900 to-purple-950 z-50 flex flex-col items-center justify-center px-12 animate-in fade-in duration-500">
+            <h1 className="text-7xl md:text-9xl font-bold text-yellow-400 mb-20 uppercase tracking-wider animate-in slide-in-from-top duration-700" style={{ fontFamily: "'Fjalla One', sans-serif", textShadow: '8px 8px 0 #000000' }}>
+              Final Scores
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 w-full max-w-6xl">
+              {players
+                .sort((a, b) => b.score - a.score)
+                .map((p, idx) => (
+                <div 
+                  key={p.id} 
+                  className="flex flex-col items-center p-10 bg-purple-800 bg-opacity-50 rounded-3xl border-4 border-purple-600 shadow-2xl animate-in zoom-in duration-500"
+                  style={{ animationDelay: `${idx * 200}ms` }}
+                >
+                  {idx === 0 && p.score > 0 && (
+                    <div className="text-6xl mb-4 animate-bounce">🏆</div>
+                  )}
+                  <div className="text-4xl md:text-5xl font-bold text-white mb-6 text-center uppercase tracking-wide" style={{ fontFamily: "'Fjalla One', sans-serif", textShadow: '4px 4px 0 #000000' }}>
+                    {p.name}
+                  </div>
+                  <div className={`text-7xl md:text-8xl font-mono font-bold ${p.score < 0 ? 'text-red-400' : 'text-green-400'} drop-shadow-[0_5px_10px_rgba(0,0,0,0.9)]`} style={{ textShadow: '5px 5px 0 #000000' }}>
+                    ${p.score.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         {/* ROUND END SCORE DISPLAY */}
         {phase === GamePhase.ROUND_END && (
           <div className="absolute inset-0 bg-gradient-to-b from-blue-900 to-blue-950 z-50 flex flex-col items-center justify-center px-12 animate-in fade-in duration-500">

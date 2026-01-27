@@ -23,7 +23,8 @@ const HostView: React.FC = () => {
     setDailyDoubleConfig,
     resolveDailyDouble,
     endRound,
-    continueFromRoundEnd
+    continueFromRoundEnd,
+    endGame
   } = useGame();
   
   const { categories, players, activeClueId, phase, activePlayerId, round, dailyDoublePlayerId, dailyDoubleWager } = gameState;
@@ -198,11 +199,27 @@ const HostView: React.FC = () => {
                               {p.name} {p.wager !== undefined ? `($${p.wager})` : ''}
                               {p.isFinalAnswerJudged && ' ✓'}
                           </button>
-                      ))}
-                      <button onClick={() => resetGame()} className="px-4 py-2 rounded border border-red-500 bg-red-900/50 hover:bg-red-900 text-red-200">
+                      ))}  
+                      <button onClick={() => endGame()} className="px-4 py-2 rounded border border-red-500 bg-red-900/50 hover:bg-red-900 text-red-200">
                           End Game
                       </button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* GAME OVER CONTROL PANEL */}
+      {phase === GamePhase.GAME_OVER && (
+          <div className="p-4 bg-gradient-to-r from-purple-900 to-indigo-900 text-white border-b border-purple-700">
+              <div className="flex flex-col items-center max-w-4xl mx-auto gap-4">
+                  <h3 className="font-bold uppercase tracking-widest text-yellow-400 text-xl">Game Over</h3>
+                  <p className="text-purple-200 text-sm">Final scores are displayed on the board</p>
+                  <button 
+                      onClick={() => resetGame()} 
+                      className="px-8 py-3 rounded-lg border-2 border-green-500 bg-green-600 hover:bg-green-500 text-white font-bold text-lg shadow-lg transition-all hover:scale-105"
+                  >
+                      🎮 Start New Game
+                  </button>
               </div>
           </div>
       )}

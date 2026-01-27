@@ -33,6 +33,7 @@ interface GameContextType {
   loadGameFromApi: (gameId: string) => Promise<void>;
   endRound: () => void;
   continueFromRoundEnd: () => void;
+  endGame: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -442,6 +443,11 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     }
   }, [currentGameId, gameState.round, startDoubleJeopardy, startFinalJeopardy]);
 
+  const endGame = useCallback(() => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('host:endGame', { gameId: currentGameId });
+  }, [currentGameId]);
+
   return (
     <GameContext.Provider value={{
       gameState,
@@ -470,7 +476,8 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       loadCategories,
       loadGameFromApi,
       endRound,
-      continueFromRoundEnd
+      continueFromRoundEnd,
+      endGame
     }}>
       {children}
     </GameContext.Provider>

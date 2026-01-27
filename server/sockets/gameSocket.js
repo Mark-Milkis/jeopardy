@@ -517,6 +517,16 @@ module.exports = function(io) {
       console.log(`Continuing from round end for game ${gameId}`);
       broadcastGameState(io, gameId);
     });
+
+    socket.on('host:endGame', ({ gameId }) => {
+      const game = getGame(gameId);
+      game.phase = GamePhase.GAME_OVER;
+      game.activeClueId = null;
+      game.buzzersOpen = false;
+      game.activePlayerId = null;
+      console.log(`Game ${gameId} ended, showing final scores`);
+      broadcastGameState(io, gameId);
+    });
     
     // Disconnect handling
     socket.on('disconnect', () => {

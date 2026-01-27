@@ -86,6 +86,12 @@ const STORAGE_KEYS = {
 
 export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
   const socketRef = useRef<Socket | null>(null);
+  // Store loaded game categories for all rounds (J, DJ, FJ)
+  const loadedGameCategoriesRef = useRef<{
+    jeopardy: Category[];
+    doubleJeopardy: Category[];
+    finalJeopardy: Category[];
+  } | null>(null);
   
   const [gameState, setGameState] = useState<GameState>({
     phase: GamePhase.BOARD,
@@ -293,13 +299,17 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
 
   const resetGame = useCallback(() => {
     if (!socketRef.current) return;
+    // Clear any loaded game categories
+    loadedGameCategoriesRef.current = null;
     socketRef.current.emit('host:resetGame', { gameId: currentGameId });
   }, [currentGameId]);
 
   const startDoubleJeopardy = useCallback(() => {
     console.log('startDoubleJeopardy called, socket?', !!socketRef.current);
     if (!socketRef.current) return;
-    const categories = generateCategories('DOUBLE_JEOPARDY');
+    // Use loaded categories if available, otherwise generate defaults
+    const categories = loadedGameCategoriesRef.current?.doubleJeopardy || generateCategories('DOUBLE_JEOPARDY');
+    console.log('[GameService] Starting Double Jeopardy with', categories.length, 'categories (from loaded game:', !!loadedGameCategoriesRef.current, ')');
     socketRef.current.emit('host:startRound', { 
       gameId: currentGameId, 
       round: 'DOUBLE_JEOPARDY',
@@ -309,7 +319,9 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
 
   const startFinalJeopardy = useCallback(() => {
     if (!socketRef.current) return;
-    const categories = generateCategories('FINAL_JEOPARDY');
+    // Use loaded categories if available, otherwise generate defaults
+    const categories = loadedGameCategoriesRef.current?.finalJeopardy || generateCategories('FINAL_JEOPARDY');
+    console.log('[GameService] Starting Final Jeopardy with', categories.length, 'categories (from loaded game:', !!loadedGameCategoriesRef.current, ')');
     socketRef.current.emit('host:startRound', { 
       gameId: currentGameId, 
       round: 'FINAL_JEOPARDY',
@@ -380,8 +392,21 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       // Wait a moment for reset to complete
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Load Jeopardy round categories
+      // Extract categories for each round
       const jeopardyCategories = categories.filter(c => c.id.startsWith('j-'));
+      const djCategories = categories.filter(c => c.id.startsWith('dj-'));
+      const fjCategories = categories.filter(c => c.id.startsWith('fj-'));
+      
+      // Store all categories in ref for later use
+      loadedGameCategoriesRef.current = {
+        jeopardy: jeopardyCategories,
+        doubleJeopardy: djCategories,
+        finalJeopardy: fjCategories
+      };
+      
+      console.log('[GameService] Stored categories - J:', jeopardyCategories.length, 'DJ:', djCategories.length, 'FJ:', fjCategories.length);
+      
+      // Load Jeopardy round categories
       if (jeopardyCategories.length > 0) {
         console.log('[GameService] Loading Jeopardy categories:', jeopardyCategories);
         socketRef.current.emit('host:startRound', {
@@ -390,14 +415,6 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
           categories: jeopardyCategories
         });
       }
-      
-      // Store DJ and FJ categories for later use
-      // (They'll be loaded when host clicks "Start Double" or "Start Final")
-      // For now, just log that they're ready
-      const djCategories = categories.filter(c => c.id.startsWith('dj-'));
-      const fjCategories = categories.filter(c => c.id.startsWith('fj-'));
-      console.log('[GameService] Double Jeopardy categories ready:', djCategories.length);
-      console.log('[GameService] Final Jeopardy categories ready:', fjCategories.length);
       
       console.log('[GameService] Game loaded successfully');
     } catch (error) {

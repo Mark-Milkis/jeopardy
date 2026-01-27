@@ -80,7 +80,8 @@ function convertRound(
 
     // Extract clues for this category
     for (let clueNum = 1; clueNum <= cluesPerCategory; clueNum++) {
-      const clueKey = isFinal ? `clue_${roundPrefix}_1_1` : `clue_${roundPrefix}_${catNum}_${clueNum}`;
+      // Note: J-Archive uses 'clue_FJ' for Final Jeopardy (not 'clue_FJ_1_1')
+      const clueKey = isFinal ? `clue_${roundPrefix}` : `clue_${roundPrefix}_${catNum}_${clueNum}`;
       const clueData: LegacyClueData = data[clueKey];
 
       if (!clueData) {

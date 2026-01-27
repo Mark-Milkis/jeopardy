@@ -1,5 +1,5 @@
 {
-  "name": "jeopardy-pro",
+  "name": "jeopardy",
   "version": "2.0.0",
   "description": "Jeopardy practice game with React frontend and Socket.IO backend",
   "private": true,

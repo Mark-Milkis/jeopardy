@@ -23,11 +23,22 @@ npm install
 npm run dev
 ```
 
+**Docker Quick Start:**
+```bash
+# Using Docker Compose (easiest)
+docker compose up -d
+
+# Or build and run manually
+docker build -t jeopardy .
+docker run -p 3000:3000 jeopardy
+```
+
 📖 **Documentation**:
 - [Socket.IO API](README_SOCKETS.md)
 - [Project Structure](PROJECT_STRUCTURE.md)
 - [Versioning System](VERSIONING.md) - Automated semantic versioning with GitHub Actions
 - [Version Quick Reference](VERSION_QUICK_REF.md)
+- [Docker Guide](DOCKER.md) - Complete Docker documentation
 
 ---
 

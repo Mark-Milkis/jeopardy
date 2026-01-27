@@ -96,7 +96,7 @@ Developer runs "Version Bump" workflow (or manual tag)
 │                                      │
 │  GitHub Releases:                    │
 │    Release v2.1.0                   │
-│    jeopardy-pro-v2.1.0.tar.gz       │
+│    jeopardy-v2.1.0.tar.gz       │
 └─────────────────────────────────────┘
 ```
 

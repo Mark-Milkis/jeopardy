@@ -24,6 +24,21 @@ const BoardView: React.FC = () => {
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 relative flex items-center justify-center min-h-0">
         
+        {/* WELCOME LOGO - Show when no game is loaded */}
+        {categories.length === 0 && (
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0015a0] to-[#000a60] z-40 flex flex-col items-center justify-center px-12">
+            <div className="text-center animate-in fade-in duration-1000">
+              <h1 className="text-[20vh] md:text-[25vh] font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 uppercase tracking-tighter mb-6 animate-in slide-in-from-top duration-700" style={{ fontFamily: "'Fjalla One', sans-serif", textShadow: '8px 8px 0 rgba(0,0,0,0.5)' }}>
+                Jeopardy!
+              </h1>
+              <div className="h-2 w-96 mx-auto bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full animate-pulse"></div>
+              <p className="text-3xl md:text-4xl text-blue-200 mt-12 uppercase tracking-widest opacity-75 animate-in fade-in duration-1000" style={{ animationDelay: '500ms' }}>
+                Waiting for host to start game...
+              </p>
+            </div>
+          </div>
+        )}
+        
         {/* GAME OVER FINAL SCORE DISPLAY */}
         {phase === GamePhase.GAME_OVER && (
           <div className="absolute inset-0 bg-gradient-to-b from-indigo-900 to-purple-950 z-50 flex flex-col items-center justify-center px-12 animate-in fade-in duration-500">

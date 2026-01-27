@@ -1,0 +1,89 @@
+name: Build Development
+
+on:
+  push:
+    branches:
+      - master
+      - feature/*
+      - develop
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Set version with git SHA
+        run: |
+          node scripts/sync-version.js --git-sha
+          
+      - name: Display version info
+        run: |
+          cat server/version.json
+          
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install client dependencies
+        run: |
+          cd client/src
+          npm install
+
+      - name: Build client
+        run: |
+          cd client/src
+          npm run build
+          
+      - name: Run tests (placeholder)
+        run: |
+          echo "Tests would run here"
+          # npm test
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: github.event_name == 'push'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        if: github.event_name == 'push'
+        id: meta
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          BRANCH_NAME=${BRANCH_NAME//\//-}  # Replace / with -
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA_SHORT}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/jeopardy:${{ steps.meta.outputs.branch }}-${{ steps.meta.outputs.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/jeopardy:${{ steps.meta.outputs.branch }}-latest
+          build-args: |
+            VERSION=${{ steps.meta.outputs.sha }}

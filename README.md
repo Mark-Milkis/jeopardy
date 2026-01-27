@@ -10,6 +10,7 @@ The app has been modernized with a new React frontend and real-time Socket.IO ba
 - **Real-time Sync**: Socket.IO for instant game state updates across all views
 - **Multiple Views**: Host, Player, Board, and Developer interfaces
 - **Better UX**: Improved buzzer logic, Daily Double handling, and Final Jeopardy flow
+- **Automated Versioning**: Semantic versioning for releases, git SHA for dev builds
 
 **Quick Start (v2):**
 ```bash
@@ -22,8 +23,37 @@ npm install
 npm run dev
 ```
 
-📖 **Full Socket.IO Documentation**: See [README_SOCKETS.md](README_SOCKETS.md)  
-📂 **Project Structure**: See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+📖 **Documentation**:
+- [Socket.IO API](README_SOCKETS.md)
+- [Project Structure](PROJECT_STRUCTURE.md)
+- [Versioning System](VERSIONING.md) - Automated semantic versioning with GitHub Actions
+- [Version Quick Reference](VERSION_QUICK_REF.md)
+
+---
+
+## 🔖 Versioning & Releases
+
+This project uses automated semantic versioning:
+- **Release versions**: Clean semantic versions (e.g., `v2.0.0`)
+- **Development builds**: Include git SHA (e.g., `2.0.0+abc1234.feature-branch`)
+- **GitHub Actions**: Automated builds and releases
+
+**Create a release:**
+```bash
+# Via GitHub Actions UI (recommended)
+# Actions → Version Bump → Select patch/minor/major
+
+# Or manually tag
+git tag -a v2.1.0 -m "Release v2.1.0"
+git push origin v2.1.0
+```
+
+**Check version:**
+```bash
+curl http://localhost:3000/api/version
+```
+
+See [VERSIONING.md](VERSIONING.md) for complete documentation.
 
 ---
 

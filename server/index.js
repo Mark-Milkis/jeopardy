@@ -55,6 +55,28 @@ if (app.get('env') === 'production') {
  * Routes
  */
 
+// Version endpoint
+app.get('/api/version', function(req, res) {
+  try {
+    const versionInfo = require('./version');
+    res.json(versionInfo);
+  } catch (error) {
+    res.json({
+      version: require('../package.json').version,
+      buildMetadata: '',
+      fullVersion: require('../package.json').version,
+      buildDate: new Date().toISOString(),
+      gitSha: 'unknown',
+      gitBranch: 'unknown'
+    });
+  }
+});
+
+// Health check endpoint
+app.get('/health', function(req, res) {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // JSON API (active)
 app.get('/api/seasons', api.seasons);
 app.get('/api/seasons/:id', api.season);

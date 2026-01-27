@@ -21,7 +21,12 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node server/index.js"
+    "dev": "node server/index.js",
+    "version:sync": "node scripts/sync-version.js",
+    "version:dev": "node scripts/sync-version.js --git-sha",
+    "version:set": "node scripts/sync-version.js --version",
+    "build": "npm run version:sync && cd client/src && npm run build",
+    "build:dev": "npm run version:dev && cd client/src && npm run build"
   },
   "engines": {
     "node": ">= 16.0.0"

@@ -26,6 +26,8 @@ export interface Player {
   wager?: number;
   finalAnswer?: string;
   isFinalAnswerJudged?: boolean;
+  isConnected?: boolean; // Whether player's socket is currently connected
+  socketId?: string; // Current socket ID (for backend tracking)
 }
 
 export interface Clue {

@@ -7,6 +7,7 @@ const PlayerView: React.FC = () => {
   const [name, setName] = useState('');
   // Use a dedicated state for forcing re-renders during countdown
   const [, setTick] = useState(0);
+  const [showReconnectedMessage, setShowReconnectedMessage] = useState(false);
   
   console.log('[PlayerView] Render - isConnected:', isConnected, 'currentPlayerId:', currentPlayerId);
 
@@ -16,6 +17,26 @@ const PlayerView: React.FC = () => {
 
   // Always derive player state at top level
   const player = currentPlayerId ? gameState.players.find(p => p.id === currentPlayerId) : undefined;
+  
+  // Show reconnected message when player reconnects
+  useEffect(() => {
+    if (player && isConnected && localStorage.getItem('jeopardy_player_id') === player.id) {
+      // Check if we just reconnected (was disconnected before)
+      const wasDisconnected = sessionStorage.getItem('was_disconnected') === 'true';
+      if (wasDisconnected) {
+        setShowReconnectedMessage(true);
+        sessionStorage.removeItem('was_disconnected');
+        setTimeout(() => setShowReconnectedMessage(false), 3000);
+      }
+    }
+  }, [player, isConnected]);
+  
+  // Track disconnection
+  useEffect(() => {
+    if (!isConnected && currentPlayerId) {
+      sessionStorage.setItem('was_disconnected', 'true');
+    }
+  }, [isConnected, currentPlayerId]);
   
   // Calculate Penalty State
   const now = Date.now();
@@ -261,7 +282,21 @@ const PlayerView: React.FC = () => {
   }
 
   return (
-    <div className="h-full w-full bg-gray-900 flex flex-col text-white">
+    <div className="h-full w-full bg-gray-900 flex flex-col text-white relative">
+      {/* Reconnection Success Banner */}
+      {showReconnectedMessage && (
+        <div className="absolute top-0 left-0 right-0 z-50 bg-green-500 text-white px-4 py-3 text-center font-bold shadow-lg animate-[slideDown_0.3s_ease-out]">
+          ✓ Reconnected! Welcome back, {player.name}
+        </div>
+      )}
+      
+      {/* Connection Status Warning */}
+      {!isConnected && (
+        <div className="absolute top-0 left-0 right-0 z-50 bg-red-500 text-white px-4 py-3 text-center font-bold shadow-lg animate-pulse">
+          ⚠ Connection Lost - Attempting to reconnect...
+        </div>
+      )}
+      
       {/* Header Info */}
       <div className="p-4 bg-gray-800 flex justify-between items-center border-b border-gray-700">
         <div>

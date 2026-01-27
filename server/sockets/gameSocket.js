@@ -81,7 +81,9 @@ module.exports = function(io) {
           score: 0,
           buzzerStatus: BuzzerStatus.IDLE,
           avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${playerName}`,
-          lockedOutUntil: 0
+          lockedOutUntil: 0,
+          isConnected: true,
+          socketId: socket.id
         };
         
         game.players.push(newPlayer);
@@ -99,6 +101,39 @@ module.exports = function(io) {
       // Notify all clients that a player joined
       if (playerName) {
         broadcastGameState(io, gameId);
+      }
+    });
+    
+    // Handle player reconnection
+    socket.on('player:reconnect', ({ gameId, playerId, playerName }) => {
+      currentGameId = gameId;
+      socket.join(gameId);
+      
+      const game = getGame(gameId);
+      const existingPlayer = game.players.find(p => p.id === playerId);
+      
+      if (existingPlayer) {
+        // Player found - reconnect them
+        existingPlayer.isConnected = true;
+        existingPlayer.socketId = socket.id;
+        currentPlayerId = playerId;
+        
+        console.log(`Player ${playerName} (${playerId}) reconnected to game ${gameId}`);
+        
+        // Send confirmation to the reconnecting player
+        socket.emit('player:reconnected', { playerId, player: existingPlayer });
+        
+        // Send current game state
+        socket.emit('gameState:update', game);
+        
+        // Notify all clients about the reconnection
+        broadcastGameState(io, gameId);
+      } else {
+        // Player not found - session expired or invalid
+        console.log(`Reconnection failed: Player ${playerId} not found in game ${gameId}`);
+        socket.emit('player:reconnectFailed', { 
+          reason: 'Player session not found. Please join as a new player.' 
+        });
       }
     });
     
@@ -158,6 +193,23 @@ module.exports = function(io) {
       if (player) {
         player.finalAnswer = answer;
         broadcastGameState(io, gameId);
+      }
+    });
+    
+    // Handle socket disconnection
+    socket.on('disconnect', () => {
+      console.log(`Socket disconnected: ${socket.id}`);
+      
+      // Mark player as disconnected but don't remove them
+      if (currentPlayerId && currentGameId) {
+        const game = getGame(currentGameId);
+        const player = game.players.find(p => p.id === currentPlayerId);
+        
+        if (player) {
+          player.isConnected = false;
+          console.log(`Player ${player.name} (${currentPlayerId}) marked as disconnected`);
+          broadcastGameState(io, currentGameId);
+        }
       }
     });
     

@@ -77,6 +77,13 @@ const generateCategories = (round: GameRound): Category[] => {
   }));
 };
 
+// LocalStorage keys for session persistence
+const STORAGE_KEYS = {
+  PLAYER_ID: 'jeopardy_player_id',
+  PLAYER_NAME: 'jeopardy_player_name',
+  GAME_ID: 'jeopardy_game_id'
+};
+
 export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
   const socketRef = useRef<Socket | null>(null);
   
@@ -95,8 +102,14 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
   });
 
   const [isConnected, setIsConnected] = useState(false);
-  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
-  const [currentGameId, setCurrentGameId] = useState('default');
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(() => {
+    // Try to restore player ID from localStorage on mount
+    return localStorage.getItem(STORAGE_KEYS.PLAYER_ID) || null;
+  });
+  const [currentGameId, setCurrentGameId] = useState(() => {
+    // Try to restore game ID from localStorage on mount
+    return localStorage.getItem(STORAGE_KEYS.GAME_ID) || 'default';
+  });
 
   // Initialize Socket.IO connection
   useEffect(() => {
@@ -122,9 +135,23 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       console.log('[Socket] ✓ Connected to Socket.IO server, socket.id:', socket.id);
       setIsConnected(true);
       
-      // Join default game room
-      console.log('[Socket] Auto-joining default game room...');
-      socket.emit('game:join', { gameId: 'default' });
+      // Try to reconnect to existing session if available
+      const storedPlayerId = localStorage.getItem(STORAGE_KEYS.PLAYER_ID);
+      const storedPlayerName = localStorage.getItem(STORAGE_KEYS.PLAYER_NAME);
+      const storedGameId = localStorage.getItem(STORAGE_KEYS.GAME_ID) || 'default';
+      
+      if (storedPlayerId && storedPlayerName) {
+        console.log('[Socket] Attempting to reconnect as player:', storedPlayerName, storedPlayerId);
+        socket.emit('player:reconnect', { 
+          gameId: storedGameId, 
+          playerId: storedPlayerId,
+          playerName: storedPlayerName 
+        });
+      } else {
+        // Join default game room as observer
+        console.log('[Socket] Auto-joining default game room as observer...');
+        socket.emit('game:join', { gameId: storedGameId });
+      }
     });
 
     socket.on('disconnect', () => {
@@ -146,6 +173,27 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     socket.on('player:joined', ({ playerId, player }) => {
       console.log('Player joined:', player);
       setCurrentPlayerId(playerId);
+      // Store player session in localStorage
+      localStorage.setItem(STORAGE_KEYS.PLAYER_ID, playerId);
+      localStorage.setItem(STORAGE_KEYS.PLAYER_NAME, player.name);
+    });
+    
+    // Player reconnected confirmation
+    socket.on('player:reconnected', ({ playerId, player }) => {
+      console.log('Player reconnected:', player);
+      setCurrentPlayerId(playerId);
+      // Refresh localStorage (in case name changed)
+      localStorage.setItem(STORAGE_KEYS.PLAYER_ID, playerId);
+      localStorage.setItem(STORAGE_KEYS.PLAYER_NAME, player.name);
+    });
+    
+    // Handle reconnection failure
+    socket.on('player:reconnectFailed', ({ reason }) => {
+      console.warn('Reconnection failed:', reason);
+      // Clear invalid session data
+      localStorage.removeItem(STORAGE_KEYS.PLAYER_ID);
+      localStorage.removeItem(STORAGE_KEYS.PLAYER_NAME);
+      setCurrentPlayerId(null);
     });
 
     // Early buzz penalty notification
@@ -174,6 +222,7 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     }
     
     setCurrentGameId(gameId);
+    localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
     socketRef.current.emit('game:join', { gameId, playerName: name });
   }, []);
 

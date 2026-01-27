@@ -91,13 +91,26 @@ const HostView: React.FC = () => {
             <div key={p.id} className={`
                 flex items-center gap-3 p-2 rounded bg-gray-800 border border-gray-700 min-w-[200px] shadow-sm
                 ${p.id === activePlayerId ? 'ring-2 ring-[#FFCC00] bg-gray-700' : ''}
+                ${!p.isConnected ? 'opacity-50' : ''}
             `}>
-                {/* Status Dot */}
-                <div className={`w-3 h-3 shrink-0 rounded-full ${p.buzzerStatus === BuzzerStatus.ARMED ? 'bg-green-500' : p.buzzerStatus === BuzzerStatus.LOCKED ? 'bg-red-500' : 'bg-gray-400'}`}></div>
+                {/* Status Dot - shows connection + buzzer status */}
+                <div className={`w-3 h-3 shrink-0 rounded-full relative ${
+                  !p.isConnected ? 'bg-gray-600 animate-pulse' : 
+                  p.buzzerStatus === BuzzerStatus.ARMED ? 'bg-green-500' : 
+                  p.buzzerStatus === BuzzerStatus.LOCKED ? 'bg-red-500' : 
+                  'bg-gray-400'
+                }`}>
+                  {!p.isConnected && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-gray-800" title="Disconnected"></div>
+                  )}
+                </div>
                 
                 <div className="flex-1 overflow-hidden">
                     <div className="font-bold truncate text-sm flex justify-between">
-                        <span>{p.name}</span>
+                        <span className="flex items-center gap-1">
+                          {p.name}
+                          {!p.isConnected && <span className="text-[9px] text-red-400 font-normal">(offline)</span>}
+                        </span>
                         {/* Wager/Answer Status Icons */}
                         {round === 'FINAL_JEOPARDY' && (
                             <div className="flex text-[10px] gap-1">

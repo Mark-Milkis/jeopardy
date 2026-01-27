@@ -15,18 +15,12 @@ Modern React + TypeScript frontend for Jeopardy Pro with real-time Socket.IO int
    npm install
    ```
 
-2. Configure Socket.IO connection:
-   ```bash
-   cp .env.example .env
-   # Edit .env if backend is not on localhost:3000
-   ```
-
-3. Run the development server:
+2. Run the development server:
    ```bash
    npm run dev
    ```
 
-4. Open browser to the URL shown (typically http://localhost:5173)
+3. Open browser to the URL shown (typically http://localhost:5173)
 
 ## Application Routes
 

@@ -102,9 +102,14 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
   useEffect(() => {
     console.log('[GameProvider] Initializing socket connection...');
     // Connect to backend (adjust URL for production)
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+    // Use environment variable if set, otherwise use current origin (works for production)
+    // For dev, falls back to localhost:3000
+    const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
+    const socketUrl = envSocketUrl || 
+      (import.meta.env.DEV ? 'http://localhost:3000' : window.location.origin);
     console.log('[GameProvider] Socket URL:', socketUrl);
     console.log('[GameProvider] Environment:', import.meta.env);
+    console.log('[GameProvider] Window origin:', window.location.origin);
     
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],

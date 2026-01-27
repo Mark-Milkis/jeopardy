@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGame } from '../services/gameService';
 import { GamePhase, BuzzerStatus } from '../types';
+import { useWakeLock } from '../hooks/useWakeLock';
 
 const PlayerView: React.FC = () => {
   const { gameState, joinGame, buzz, submitWager, submitFinalAnswer, currentPlayerId, isConnected } = useGame();
@@ -8,6 +9,9 @@ const PlayerView: React.FC = () => {
   // Use a dedicated state for forcing re-renders during countdown
   const [, setTick] = useState(0);
   const [showReconnectedMessage, setShowReconnectedMessage] = useState(false);
+  
+  // Activate wake lock to prevent screen from sleeping
+  const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
   
   console.log('[PlayerView] Render - isConnected:', isConnected, 'currentPlayerId:', currentPlayerId);
 

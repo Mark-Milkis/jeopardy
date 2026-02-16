@@ -76,9 +76,8 @@ module.exports = function(io) {
       
       // If playerName provided, add player to game
       if (playerName) {
-        // Check max players limit
-        const connectedPlayers = game.players.filter(p => p.isConnected).length;
-        if (connectedPlayers >= game.maxPlayers) {
+        // Check max players limit (count all players, not just connected)
+        if (game.players.length >= game.maxPlayers) {
           socket.emit('player:joinFailed', { 
             reason: `Game is full (${game.maxPlayers} players maximum)` 
           });
@@ -86,7 +85,7 @@ module.exports = function(io) {
           return;
         }
         
-        // Check for duplicate names (case-insensitive)
+        // Check for duplicate names (case-insensitive, only among connected players)
         const nameExists = game.players.some(p => 
           p.name.toLowerCase() === playerName.toLowerCase() && p.isConnected
         );
@@ -675,14 +674,6 @@ module.exports = function(io) {
       game.activePlayerId = null;
       console.log(`Game ${gameId} ended, showing final scores`);
       broadcastGameState(io, gameId);
-    });
-    
-    // Disconnect handling
-    socket.on('disconnect', () => {
-      console.log(`Socket disconnected: ${socket.id}`);
-      
-      // Optionally: Remove player from game on disconnect
-      // For now, we keep them in the game (they can reconnect)
     });
     
     // Debug: Get current game state

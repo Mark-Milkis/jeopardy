@@ -24,12 +24,19 @@ const HostView: React.FC = () => {
     resolveDailyDouble,
     endRound,
     continueFromRoundEnd,
-    endGame
+    endGame,
+    removePlayer,
+    renamePlayer,
+    addPlayer
   } = useGame();
   
-  const { categories, players, activeClueId, phase, activePlayerId, round, dailyDoublePlayerId, dailyDoubleWager } = gameState;
+  const { categories, players, activeClueId, phase, activePlayerId, round, dailyDoublePlayerId, dailyDoubleWager, maxPlayers = 6 } = gameState;
   const [showSettings, setShowSettings] = useState(false);
   const [ddWagerInput, setDdWagerInput] = useState('');
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState('');
 
   // Derive Active Clue
   let activeClue: Clue | undefined;
@@ -90,7 +97,7 @@ const HostView: React.FC = () => {
 
         {players.map(p => (
             <div key={p.id} className={`
-                flex items-center gap-3 p-2 rounded bg-gray-800 border border-gray-700 min-w-[200px] shadow-sm
+                flex items-center gap-2 p-2 rounded bg-gray-800 border border-gray-700 min-w-[200px] shadow-sm
                 ${p.id === activePlayerId ? 'ring-2 ring-[#FFCC00] bg-gray-700' : ''}
                 ${!p.isConnected ? 'opacity-50' : ''}
             `}>
@@ -109,7 +116,43 @@ const HostView: React.FC = () => {
                 <div className="flex-1 overflow-hidden">
                     <div className="font-bold truncate text-sm flex justify-between">
                         <span className="flex items-center gap-1">
-                          {p.name}
+                          {editingPlayerId === p.id ? (
+                            <input 
+                              type="text"
+                              value={editNameValue}
+                              onChange={(e) => setEditNameValue(e.target.value)}
+                              onBlur={() => {
+                                if (editNameValue.trim() && editNameValue !== p.name) {
+                                  renamePlayer(p.id, editNameValue.trim());
+                                }
+                                setEditingPlayerId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  if (editNameValue.trim() && editNameValue !== p.name) {
+                                    renamePlayer(p.id, editNameValue.trim());
+                                  }
+                                  setEditingPlayerId(null);
+                                } else if (e.key === 'Escape') {
+                                  setEditingPlayerId(null);
+                                }
+                              }}
+                              autoFocus
+                              maxLength={10}
+                              className="bg-gray-700 text-white px-1 rounded border border-[#FFCC00] w-24"
+                            />
+                          ) : (
+                            <button 
+                              onClick={() => {
+                                setEditingPlayerId(p.id);
+                                setEditNameValue(p.name);
+                              }}
+                              className="hover:text-[#FFCC00] transition-colors"
+                              title="Click to rename"
+                            >
+                              {p.name}
+                            </button>
+                          )}
                           {!p.isConnected && <span className="text-[9px] text-red-400 font-normal">(offline)</span>}
                         </span>
                         {/* Wager/Answer Status Icons */}
@@ -129,8 +172,78 @@ const HostView: React.FC = () => {
                     <button onClick={() => updateScore(p.id, 100)} className="w-6 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-[10px] flex items-center justify-center active:bg-gray-500">+</button>
                     <button onClick={() => updateScore(p.id, -100)} className="w-6 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded text-[10px] flex items-center justify-center active:bg-gray-500">-</button>
                 </div>
+                
+                {/* Remove Player Button */}
+                <button 
+                  onClick={() => {
+                    if (confirm(`Remove player "${p.name}"?`)) {
+                      removePlayer(p.id);
+                    }
+                  }}
+                  className="w-6 h-6 bg-red-900/50 hover:bg-red-800 border border-red-700 rounded text-red-400 hover:text-red-300 text-xs flex items-center justify-center"
+                  title="Remove player"
+                >
+                  ×
+                </button>
             </div>
         ))}
+        
+        {/* Add Player Button */}
+        {showAddPlayer ? (
+          <div className="flex items-center gap-2 p-2 rounded bg-gray-800 border border-[#FFCC00] min-w-[200px]">
+            <input 
+              type="text"
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newPlayerName.trim()) {
+                  addPlayer(newPlayerName.trim());
+                  setNewPlayerName('');
+                  setShowAddPlayer(false);
+                } else if (e.key === 'Escape') {
+                  setNewPlayerName('');
+                  setShowAddPlayer(false);
+                }
+              }}
+              placeholder="Player name"
+              autoFocus
+              maxLength={10}
+              className="flex-1 bg-gray-700 text-white px-2 py-1 rounded border border-gray-600"
+            />
+            <button 
+              onClick={() => {
+                if (newPlayerName.trim()) {
+                  addPlayer(newPlayerName.trim());
+                  setNewPlayerName('');
+                  setShowAddPlayer(false);
+                }
+              }}
+              className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-xs"
+            >
+              Add
+            </button>
+            <button 
+              onClick={() => {
+                setNewPlayerName('');
+                setShowAddPlayer(false);
+              }}
+              className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setShowAddPlayer(true)}
+            className="p-2 rounded bg-gray-800 border border-gray-700 hover:border-[#FFCC00] text-gray-400 hover:text-white transition-colors"
+            title={`Add player (${players.length}/${maxPlayers})`}
+            disabled={players.length >= maxPlayers}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </button>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
                          {round === 'JEOPARDY' && categories.length === 0 && (
@@ -636,6 +749,19 @@ const HostView: React.FC = () => {
                             step="0.5"
                             value={gameState.earlyBuzzPenaltyDuration / 1000}
                             onChange={(e) => updateSettings({ earlyBuzzPenaltyDuration: parseFloat(e.target.value) * 1000 })}
+                            className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Maximum Players</label>
+                        <p className="text-xs text-gray-500 mb-2">Maximum number of players allowed in the game. Current: {players.length}/{maxPlayers}</p>
+                        <input 
+                            type="number" 
+                            min="1"
+                            max="12"
+                            value={maxPlayers}
+                            onChange={(e) => updateSettings({ maxPlayers: parseInt(e.target.value) || 6 })}
                             className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                     </div>

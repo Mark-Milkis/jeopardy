@@ -4,11 +4,12 @@ import { GamePhase, BuzzerStatus } from '../types';
 import { useWakeLock } from '../hooks/useWakeLock';
 
 const PlayerView: React.FC = () => {
-  const { gameState, joinGame, buzz, submitWager, submitFinalAnswer, currentPlayerId, isConnected } = useGame();
+  const { gameState, joinGame, rejoinAs, buzz, submitWager, submitFinalAnswer, currentPlayerId, isConnected } = useGame();
   const [name, setName] = useState('');
   // Use a dedicated state for forcing re-renders during countdown
   const [, setTick] = useState(0);
   const [showReconnectedMessage, setShowReconnectedMessage] = useState(false);
+  const [showDisconnectedPlayers, setShowDisconnectedPlayers] = useState(false);
   
   // Activate wake lock to prevent screen from sleeping
   const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
@@ -111,6 +112,11 @@ const PlayerView: React.FC = () => {
 
   // 1. Join Screen
   if (!currentPlayerId) {
+    const disconnectedPlayers = gameState.players.filter(p => !p.isConnected);
+    const maxPlayers = gameState.maxPlayers || 6;
+    const connectedCount = gameState.players.filter(p => p.isConnected).length;
+    const isGameFull = connectedCount >= maxPlayers;
+    
     return (
       <div className="h-full w-full bg-[#060CE9] flex flex-col items-center justify-center p-6 text-white">
         <h1 className="text-4xl font-serif text-[#FFCC00] mb-8 drop-shadow-md">Jeopardy!</h1>
@@ -120,6 +126,50 @@ const PlayerView: React.FC = () => {
           <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
           <span className="text-sm">{isConnected ? 'Connected' : 'Connecting to server...'}</span>
         </div>
+        
+        {/* Player Count */}
+        <div className="mb-4 text-sm opacity-75">
+          {connectedCount}/{maxPlayers} players in game
+          {isGameFull && <span className="ml-2 text-red-400 font-bold">(GAME FULL)</span>}
+        </div>
+        
+        {/* Disconnected Players List */}
+        {disconnectedPlayers.length > 0 && (
+          <div className="mb-6 w-full max-w-sm">
+            <button
+              onClick={() => setShowDisconnectedPlayers(!showDisconnectedPlayers)}
+              className="w-full bg-white/10 hover:bg-white/20 p-3 rounded font-bold text-sm mb-2 flex items-center justify-between"
+            >
+              <span>Rejoin as existing player</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${showDisconnectedPlayers ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showDisconnectedPlayers && (
+              <div className="bg-white/10 rounded p-3 space-y-2 max-h-48 overflow-y-auto">
+                {disconnectedPlayers.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => rejoinAs(p.id)}
+                    className="w-full bg-white/20 hover:bg-white/30 p-3 rounded text-left flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-3">
+                      {p.avatar && <img src={p.avatar} alt={p.name} className="w-8 h-8 rounded-full" />}
+                      <div>
+                        <div className="font-bold">{p.name}</div>
+                        <div className="text-xs opacity-75">${p.score}</div>
+                      </div>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         
         <form onSubmit={handleJoin} className="w-full max-w-sm flex flex-col gap-4">
           <label className="text-lg font-bold">Enter your Name</label>
@@ -133,11 +183,14 @@ const PlayerView: React.FC = () => {
           />
           <button 
             type="submit" 
-            disabled={!isConnected || !name.trim()}
+            disabled={!isConnected || !name.trim() || isGameFull}
             className="bg-[#FFCC00] text-[#060CE9] p-4 rounded font-bold text-xl uppercase shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Join Game
+            {isGameFull ? 'Game Full' : 'Join Game'}
           </button>
+          {isGameFull && !isConnected && (
+            <p className="text-sm text-red-400 text-center">Cannot join - game has reached maximum player limit</p>
+          )}
         </form>
       </div>
     );

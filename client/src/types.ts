@@ -63,6 +63,7 @@ export interface GameState {
   earlyBuzzPenaltyDuration: number; // Duration in ms to lock out early buzzers
   dailyDoublePlayerId?: string | null;
   dailyDoubleWager?: number | null;
+  maxPlayers?: number; // Maximum number of players allowed (default: 6)
 }
 
 // Initial Data Mock

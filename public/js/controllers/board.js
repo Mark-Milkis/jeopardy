@@ -3,8 +3,8 @@
 angular.module('myApp.controllers').
   controller('BoardCtrl', function ($scope, $timeout, $modal, $location, socket, currencyFilter) {
     // Get session ID from URL parameter
-    var urlParams = new URLSearchParams($location.search());
-    $scope.sessionId = urlParams.get('session') || localStorage.getItem('jeopardy_board_session_id');
+    var searchParams = $location.search();
+    $scope.sessionId = searchParams.session || localStorage.getItem('jeopardy_board_session_id');
     $scope.showSessionPrompt = !$scope.sessionId;
     
     if ($scope.sessionId) {

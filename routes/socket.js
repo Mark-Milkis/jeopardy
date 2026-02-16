@@ -141,7 +141,9 @@ module.exports = function (io) {
         if (session && session.gameData) {
           var gameId = session.gameData.data.id;
           var file = 'games/' + gameId + '-' + new Date().getTime() + '.json';
-          jsonfile.writeFileSync(file, data, { spaces: 2 });
+          jsonfile.writeFile(file, data, { spaces: 2 }, function(err) {
+            if (err) console.error('Error writing game file:', err);
+          });
         }
       }
       

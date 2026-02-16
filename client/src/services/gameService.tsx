@@ -9,6 +9,7 @@ interface GameContextType {
   currentPlayerId: string | null;
   // Player Actions
   joinGame: (name: string, gameId?: string) => void;
+  rejoinAs: (playerId: string, gameId?: string) => void;
   buzz: (playerId: string) => void;
   submitWager: (playerId: string, amount: number) => void;
   submitFinalAnswer: (playerId: string, answer: string) => void;
@@ -34,6 +35,10 @@ interface GameContextType {
   endRound: () => void;
   continueFromRoundEnd: () => void;
   endGame: () => void;
+  // Player Management
+  removePlayer: (playerId: string) => void;
+  renamePlayer: (playerId: string, newName: string) => void;
+  addPlayer: (playerName: string) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -211,6 +216,30 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     // Lockout notification
     socket.on('player:lockedOut', ({ playerId, remainingTime }) => {
       console.log(`Player ${playerId} is locked out for ${remainingTime}ms`);
+    });
+    
+    // Join failed notification
+    socket.on('player:joinFailed', ({ reason }) => {
+      console.error('Failed to join game:', reason);
+      alert(`Failed to join game: ${reason}`);
+    });
+    
+    // Rejoin failed notification
+    socket.on('player:rejoinFailed', ({ reason }) => {
+      console.error('Failed to rejoin as player:', reason);
+      alert(`Failed to rejoin: ${reason}`);
+    });
+    
+    // Host add player failed
+    socket.on('host:addPlayerFailed', ({ reason }) => {
+      console.error('Failed to add player:', reason);
+      alert(`Failed to add player: ${reason}`);
+    });
+    
+    // Host rename player failed
+    socket.on('host:renamePlayerFailed', ({ playerId, reason }) => {
+      console.error('Failed to rename player:', playerId, reason);
+      alert(`Failed to rename player: ${reason}`);
     });
 
     return () => {
@@ -448,12 +477,45 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     socketRef.current.emit('host:endGame', { gameId: currentGameId });
   }, [currentGameId]);
 
+  // --- Player Management Actions ---
+  
+  const rejoinAs = useCallback((playerId: string, gameId: string = 'default') => {
+    console.log('rejoinAs called:', playerId, gameId, 'socket?', !!socketRef.current);
+    if (!socketRef.current) {
+      console.error('Socket not connected!');
+      return;
+    }
+    
+    setCurrentGameId(gameId);
+    localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
+    socketRef.current.emit('player:rejoinAs', { gameId, playerId });
+  }, []);
+  
+  const removePlayer = useCallback((playerId: string) => {
+    console.log('removePlayer called:', playerId, 'socket?', !!socketRef.current);
+    if (!socketRef.current) return;
+    socketRef.current.emit('host:removePlayer', { gameId: currentGameId, playerId });
+  }, [currentGameId]);
+  
+  const renamePlayer = useCallback((playerId: string, newName: string) => {
+    console.log('renamePlayer called:', playerId, newName, 'socket?', !!socketRef.current);
+    if (!socketRef.current) return;
+    socketRef.current.emit('host:renamePlayer', { gameId: currentGameId, playerId, newName });
+  }, [currentGameId]);
+  
+  const addPlayer = useCallback((playerName: string) => {
+    console.log('addPlayer called:', playerName, 'socket?', !!socketRef.current);
+    if (!socketRef.current) return;
+    socketRef.current.emit('host:addPlayer', { gameId: currentGameId, playerName });
+  }, [currentGameId]);
+
   return (
     <GameContext.Provider value={{
       gameState,
       isConnected,
       currentPlayerId,
       joinGame,
+      rejoinAs,
       buzz,
       submitWager,
       submitFinalAnswer,
@@ -477,7 +539,10 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       loadGameFromApi,
       endRound,
       continueFromRoundEnd,
-      endGame
+      endGame,
+      removePlayer,
+      renamePlayer,
+      addPlayer
     }}>
       {children}
     </GameContext.Provider>

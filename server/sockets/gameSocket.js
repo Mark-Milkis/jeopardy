@@ -42,6 +42,7 @@ function createDefaultGameState(gameId = 'default') {
     earlyBuzzPenaltyDuration: 3000,
     dailyDoublePlayerId: null,
     dailyDoubleWager: null,
+    maxPlayers: 6, // Default max players
   };
 }
 
@@ -75,6 +76,28 @@ module.exports = function(io) {
       
       // If playerName provided, add player to game
       if (playerName) {
+        // Check max players limit
+        const connectedPlayers = game.players.filter(p => p.isConnected).length;
+        if (connectedPlayers >= game.maxPlayers) {
+          socket.emit('player:joinFailed', { 
+            reason: `Game is full (${game.maxPlayers} players maximum)` 
+          });
+          socket.emit('gameState:update', game);
+          return;
+        }
+        
+        // Check for duplicate names (case-insensitive)
+        const nameExists = game.players.some(p => 
+          p.name.toLowerCase() === playerName.toLowerCase() && p.isConnected
+        );
+        if (nameExists) {
+          socket.emit('player:joinFailed', { 
+            reason: `Player name "${playerName}" is already in use` 
+          });
+          socket.emit('gameState:update', game);
+          return;
+        }
+        
         const newPlayer = {
           id: uuidv4(),
           name: playerName,
@@ -133,6 +156,38 @@ module.exports = function(io) {
         console.log(`Reconnection failed: Player ${playerId} not found in game ${gameId}`);
         socket.emit('player:reconnectFailed', { 
           reason: 'Player session not found. Please join as a new player.' 
+        });
+      }
+    });
+    
+    // Handle player rejoining as a disconnected player by name
+    socket.on('player:rejoinAs', ({ gameId, playerId }) => {
+      currentGameId = gameId;
+      socket.join(gameId);
+      
+      const game = getGame(gameId);
+      const existingPlayer = game.players.find(p => p.id === playerId && !p.isConnected);
+      
+      if (existingPlayer) {
+        // Player found and is disconnected - reconnect them
+        existingPlayer.isConnected = true;
+        existingPlayer.socketId = socket.id;
+        currentPlayerId = playerId;
+        
+        console.log(`Player ${existingPlayer.name} (${playerId}) rejoined game ${gameId}`);
+        
+        // Send confirmation to the reconnecting player
+        socket.emit('player:joined', { playerId, player: existingPlayer });
+        
+        // Send current game state
+        socket.emit('gameState:update', game);
+        
+        // Notify all clients about the rejoin
+        broadcastGameState(io, gameId);
+      } else {
+        // Player not found or already connected
+        socket.emit('player:rejoinFailed', { 
+          reason: 'Player not available or already connected.' 
         });
       }
     });
@@ -490,6 +545,100 @@ module.exports = function(io) {
     socket.on('host:updateSettings', ({ gameId, settings }) => {
       const game = getGame(gameId);
       Object.assign(game, settings);
+      broadcastGameState(io, gameId);
+    });
+    
+    // Host: Remove a player from the game
+    socket.on('host:removePlayer', ({ gameId, playerId }) => {
+      const game = getGame(gameId);
+      const playerIndex = game.players.findIndex(p => p.id === playerId);
+      
+      if (playerIndex !== -1) {
+        const removedPlayer = game.players[playerIndex];
+        game.players.splice(playerIndex, 1);
+        
+        // If removed player was active, clear active player
+        if (game.activePlayerId === playerId) {
+          game.activePlayerId = null;
+        }
+        
+        console.log(`Player ${removedPlayer.name} (${playerId}) removed from game ${gameId}`);
+        broadcastGameState(io, gameId);
+      }
+    });
+    
+    // Host: Rename a player
+    socket.on('host:renamePlayer', ({ gameId, playerId, newName }) => {
+      const game = getGame(gameId);
+      const player = game.players.find(p => p.id === playerId);
+      
+      if (!player) {
+        socket.emit('host:renamePlayerFailed', { 
+          playerId,
+          reason: 'Player not found' 
+        });
+        return;
+      }
+      
+      // Check for duplicate names (case-insensitive), excluding current player
+      const nameExists = game.players.some(p => 
+        p.id !== playerId && p.name.toLowerCase() === newName.toLowerCase()
+      );
+      
+      if (nameExists) {
+        socket.emit('host:renamePlayerFailed', { 
+          playerId,
+          reason: `Player name "${newName}" is already in use` 
+        });
+        return;
+      }
+      
+      const oldName = player.name;
+      player.name = newName;
+      player.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${newName}`;
+      
+      console.log(`Player ${oldName} renamed to ${newName} (${playerId}) in game ${gameId}`);
+      broadcastGameState(io, gameId);
+    });
+    
+    // Host: Add a new player manually
+    socket.on('host:addPlayer', ({ gameId, playerName }) => {
+      const game = getGame(gameId);
+      
+      // Check max players limit
+      if (game.players.length >= game.maxPlayers) {
+        socket.emit('host:addPlayerFailed', { 
+          reason: `Game is full (${game.maxPlayers} players maximum)` 
+        });
+        return;
+      }
+      
+      // Check for duplicate names (case-insensitive)
+      const nameExists = game.players.some(p => 
+        p.name.toLowerCase() === playerName.toLowerCase()
+      );
+      
+      if (nameExists) {
+        socket.emit('host:addPlayerFailed', { 
+          reason: `Player name "${playerName}" is already in use` 
+        });
+        return;
+      }
+      
+      const newPlayer = {
+        id: uuidv4(),
+        name: playerName,
+        score: 0,
+        buzzerStatus: BuzzerStatus.IDLE,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${playerName}`,
+        lockedOutUntil: 0,
+        isConnected: false, // Not connected yet (manually added)
+        socketId: null
+      };
+      
+      game.players.push(newPlayer);
+      
+      console.log(`Player ${playerName} (${newPlayer.id}) manually added to game ${gameId}`);
       broadcastGameState(io, gameId);
     });
     

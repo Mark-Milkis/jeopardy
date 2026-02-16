@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGame } from '../services/gameService';
 import { GamePhase } from '../types';
+import GameIdDisplay from './GameIdDisplay';
 
 const BoardView: React.FC = () => {
-  const { gameState } = useGame();
-  const { categories, players, phase, activeClueId, activePlayerId, round, dailyDoubleWager } = gameState;
+  const { gameState, isConnected, joinAsObserver } = useGame();
+  const { gameId, categories, players, phase, activeClueId, activePlayerId, round, dailyDoubleWager } = gameState;
+  
+  const [gameIdInput, setGameIdInput] = useState('');
 
   // Find active clue details
   let activeClue = null;
@@ -18,8 +21,96 @@ const BoardView: React.FC = () => {
     }
   }
 
+  // Handler for joining game
+  const handleJoinGame = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedId = gameIdInput.trim();
+    
+    // Validate 6-digit format
+    if (!/^\d{6}$/.test(trimmedId)) {
+      alert('Please enter a valid 6-digit game ID');
+      return;
+    }
+    
+    joinAsObserver(trimmedId);
+  };
+
+  // Show join screen if no game is joined
+  if (!gameId) {
+    return (
+      <div className="h-full w-full bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-8">
+        <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl p-12 space-y-8">
+          <div className="text-center space-y-4">
+            <div className="text-6xl mb-4">📺</div>
+            <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+              Join Game Board
+            </h1>
+            <p className="text-gray-600 text-lg">
+              Enter the game ID to display the board
+            </p>
+          </div>
+
+          <form onSubmit={handleJoinGame} className="space-y-6">
+            <div>
+              <label htmlFor="gameIdInput" className="block text-sm font-medium text-gray-700 mb-3 text-center">
+                6-Digit Game ID
+              </label>
+              <input
+                id="gameIdInput"
+                type="text"
+                value={gameIdInput}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setGameIdInput(value);
+                }}
+                placeholder="123456"
+                className="w-full px-6 py-5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-4xl font-mono text-center tracking-widest"
+                maxLength={6}
+                pattern="\d{6}"
+                autoFocus
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={gameIdInput.length !== 6 || !isConnected}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg text-xl"
+            >
+              {isConnected ? 'Join Game' : 'Connecting...'}
+            </button>
+          </form>
+
+          {/* Connection Status */}
+          <div className="text-center">
+            {isConnected ? (
+              <span className="text-green-600 text-sm flex items-center justify-center gap-2">
+                <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                Connected to server
+              </span>
+            ) : (
+              <span className="text-red-600 text-sm flex items-center justify-center gap-2">
+                <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                Disconnected from server
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full w-full bg-[#0015a0] text-white overflow-hidden flex flex-col select-none cursor-none" style={{ fontFamily: "'Fjalla One', sans-serif" }}>
+      
+      {/* Game ID Display - Top left corner */}
+      {gameId && (
+        <div className="absolute top-4 left-4 z-50">
+          <GameIdDisplay 
+            gameId={gameId} 
+            role="observer" 
+            isConnected={isConnected}
+          />
+        </div>
+      )}
       
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 relative flex items-center justify-center min-h-0">

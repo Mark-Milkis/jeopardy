@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useGame } from '../services/gameService';
 import { GamePhase, BuzzerStatus } from '../types';
 import { useWakeLock } from '../hooks/useWakeLock';
+import GameIdDisplay from './GameIdDisplay';
 
 const PlayerView: React.FC = () => {
-  const { gameState, joinGame, rejoinAs, buzz, submitWager, submitFinalAnswer, currentPlayerId, isConnected } = useGame();
+  const { gameState, joinGame, rejoinAs, leaveGame, buzz, submitWager, submitFinalAnswer, currentPlayerId, isConnected } = useGame();
   const [name, setName] = useState('');
+  const [gameIdInput, setGameIdInput] = useState('');
   // Use a dedicated state for forcing re-renders during countdown
   const [, setTick] = useState(0);
   const [showReconnectedMessage, setShowReconnectedMessage] = useState(false);
@@ -73,13 +75,31 @@ const PlayerView: React.FC = () => {
   // Handle Join
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[PlayerView] Join button clicked, name:', name);
-    if (name.trim()) {
-      console.log('[PlayerView] Calling joinGame with name:', name);
-      joinGame(name);
-    } else {
+    console.log('[PlayerView] Join button clicked, name:', name, 'gameId:', gameIdInput);
+    
+    const trimmedName = name.trim();
+    const trimmedGameId = gameIdInput.trim();
+    
+    if (!trimmedName) {
       console.warn('[PlayerView] Name is empty, not joining');
+      alert('Please enter your name');
+      return;
     }
+    
+    if (!trimmedGameId) {
+      console.warn('[PlayerView] Game ID is empty, not joining');
+      alert('Please enter a game ID');
+      return;
+    }
+    
+    // Validate 6-digit format
+    if (!/^\d{6}$/.test(trimmedGameId)) {
+      alert('Please enter a valid 6-digit game ID');
+      return;
+    }
+    
+    console.log('[PlayerView] Calling joinGame with name:', trimmedName, 'gameId:', trimmedGameId);
+    joinGame(trimmedName, trimmedGameId);
   };
 
   // Handle Buzz
@@ -172,18 +192,35 @@ const PlayerView: React.FC = () => {
         )}
         
         <form onSubmit={handleJoin} className="w-full max-w-sm flex flex-col gap-4">
-          <label className="text-lg font-bold">Enter your Name</label>
-          <input 
-            type="text" 
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="p-4 rounded text-black text-xl font-bold uppercase text-center"
-            placeholder="NICKNAME"
-            maxLength={10}
-          />
+          <div>
+            <label className="text-lg font-bold">Game ID</label>
+            <input 
+              type="text" 
+              value={gameIdInput}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setGameIdInput(value);
+              }}
+              className="w-full p-4 rounded text-black text-3xl font-mono font-bold text-center tracking-widest mt-2"
+              placeholder="123456"
+              maxLength={6}
+              pattern="\d{6}"
+            />
+          </div>
+          <div>
+            <label className="text-lg font-bold">Your Name</label>
+            <input 
+              type="text" 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-4 rounded text-black text-xl font-bold uppercase text-center mt-2"
+              placeholder="NICKNAME"
+              maxLength={10}
+            />
+          </div>
           <button 
             type="submit" 
-            disabled={!isConnected || !name.trim() || isGameFull}
+            disabled={!isConnected || !name.trim() || !gameIdInput.trim() || gameIdInput.length !== 6 || isGameFull}
             className="bg-[#FFCC00] text-[#060CE9] p-4 rounded font-bold text-xl uppercase shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGameFull ? 'Game Full' : 'Join Game'}
@@ -364,13 +401,37 @@ const PlayerView: React.FC = () => {
       )}
       
       {/* Header Info */}
-      <div className="p-4 bg-gray-800 flex justify-between items-center border-b border-gray-700">
-        <div>
-          <h2 className="text-xl font-bold font-serif italic text-white">{player.name}</h2>
-          <span className="text-xs text-gray-400">Rank: #1</span>
+      <div className="p-4 bg-gray-800 flex flex-col gap-3 border-b border-gray-700">
+        <div className="flex justify-between items-center">
+          <GameIdDisplay 
+            gameId={gameState.gameId} 
+            role="player" 
+            isConnected={isConnected}
+            className="self-start"
+          />
+          <button
+            onClick={() => {
+              if (confirm('Leave this game? You will return to the join screen.')) {
+                leaveGame();
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 active:bg-red-800 text-white px-3 py-1.5 rounded text-sm font-bold uppercase transition-colors flex items-center gap-1"
+            title="Leave Game"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Leave
+          </button>
         </div>
-        <div className={`text-3xl font-mono font-bold ${player.score < 0 ? 'text-red-400' : 'text-[#FFCC00]'}`}>
-          ${player.score}
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold font-serif italic text-white">{player.name}</h2>
+            <span className="text-xs text-gray-400">Rank: #1</span>
+          </div>
+          <div className={`text-3xl font-mono font-bold ${player.score < 0 ? 'text-red-400' : 'text-[#FFCC00]'}`}>
+            ${player.score}
+          </div>
         </div>
       </div>
 

@@ -52,6 +52,11 @@ export interface Category {
 export type GameRound = 'JEOPARDY' | 'DOUBLE_JEOPARDY' | 'FINAL_JEOPARDY';
 
 export interface GameState {
+  gameId?: string; // Unique 6-digit game ID
+  hostId?: string | null; // UUID of the host who created the game
+  hostName?: string | null; // Display name of the host
+  hostSocketId?: string | null; // Current socket ID of connected host
+  createdAt?: number; // Timestamp for potential cleanup
   phase: GamePhase;
   round: GameRound;
   categories: Category[];

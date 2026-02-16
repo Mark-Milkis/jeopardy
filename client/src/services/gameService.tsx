@@ -7,9 +7,16 @@ interface GameContextType {
   gameState: GameState;
   isConnected: boolean;
   currentPlayerId: string | null;
+  currentHostId: string | null;
+  isHost: boolean;
+  // Host Session Management
+  createGame: (hostName: string) => Promise<string>;
+  joinAsHost: (gameId: string) => void;
+  joinAsObserver: (gameId: string) => void;
   // Player Actions
   joinGame: (name: string, gameId?: string) => void;
   rejoinAs: (playerId: string, gameId?: string) => void;
+  leaveGame: () => void;
   buzz: (playerId: string) => void;
   submitWager: (playerId: string, amount: number) => void;
   submitFinalAnswer: (playerId: string, answer: string) => void;
@@ -87,7 +94,9 @@ const generateCategories = (round: GameRound): Category[] => {
 const STORAGE_KEYS = {
   PLAYER_ID: 'jeopardy_player_id',
   PLAYER_NAME: 'jeopardy_player_name',
-  GAME_ID: 'jeopardy_game_id'
+  GAME_ID: 'jeopardy_game_id',
+  HOST_ID: 'jeopardy_host_id',
+  HOST_NAME: 'jeopardy_host_name'
 };
 
 export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
@@ -120,8 +129,13 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
   });
   const [currentGameId, setCurrentGameId] = useState(() => {
     // Try to restore game ID from localStorage on mount
-    return localStorage.getItem(STORAGE_KEYS.GAME_ID) || 'default';
+    return localStorage.getItem(STORAGE_KEYS.GAME_ID) || null;
   });
+  const [currentHostId, setCurrentHostId] = useState<string | null>(() => {
+    // Try to restore host ID from localStorage on mount
+    return localStorage.getItem(STORAGE_KEYS.HOST_ID) || null;
+  });
+  const [isHost, setIsHost] = useState(false);
 
   // Initialize Socket.IO connection
   useEffect(() => {
@@ -148,21 +162,31 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       setIsConnected(true);
       
       // Try to reconnect to existing session if available
+      const storedHostId = localStorage.getItem(STORAGE_KEYS.HOST_ID);
       const storedPlayerId = localStorage.getItem(STORAGE_KEYS.PLAYER_ID);
       const storedPlayerName = localStorage.getItem(STORAGE_KEYS.PLAYER_NAME);
-      const storedGameId = localStorage.getItem(STORAGE_KEYS.GAME_ID) || 'default';
+      const storedGameId = localStorage.getItem(STORAGE_KEYS.GAME_ID);
       
-      if (storedPlayerId && storedPlayerName) {
+      // Priority 1: Reconnect as host if hostId and gameId exist
+      if (storedHostId && storedGameId) {
+        console.log('[Socket] Attempting to reconnect as host to game:', storedGameId);
+        socket.emit('host:joinGame', { 
+          gameId: storedGameId, 
+          hostId: storedHostId
+        });
+      }
+      // Priority 2: Reconnect as player if playerId exists
+      else if (storedPlayerId && storedPlayerName && storedGameId) {
         console.log('[Socket] Attempting to reconnect as player:', storedPlayerName, storedPlayerId);
         socket.emit('player:reconnect', { 
           gameId: storedGameId, 
           playerId: storedPlayerId,
           playerName: storedPlayerName 
         });
-      } else {
-        // Join default game room as observer
-        console.log('[Socket] Auto-joining default game room as observer...');
-        socket.emit('game:join', { gameId: storedGameId });
+      }
+      // Otherwise: Wait for explicit join action (don't auto-join)
+      else {
+        console.log('[Socket] No stored session. Waiting for explicit join...');
       }
     });
 
@@ -241,11 +265,147 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       console.error('Failed to rename player:', playerId, reason);
       alert(`Failed to rename player: ${reason}`);
     });
+    
+    // Host created game
+    socket.on('host:gameCreated', ({ gameId, hostId, hostName, game }) => {
+      console.log('[Socket] Game created:', gameId, 'Host ID:', hostId);
+      setCurrentGameId(gameId);
+      setCurrentHostId(hostId);
+      setIsHost(true);
+      
+      // Store host session in localStorage
+      localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
+      localStorage.setItem(STORAGE_KEYS.HOST_ID, hostId);
+      localStorage.setItem(STORAGE_KEYS.HOST_NAME, hostName);
+      
+      // Clear any player session
+      localStorage.removeItem(STORAGE_KEYS.PLAYER_ID);
+      localStorage.removeItem(STORAGE_KEYS.PLAYER_NAME);
+      setCurrentPlayerId(null);
+    });
+    
+    // Host joined/rejoined game
+    socket.on('host:rejoined', ({ gameId, hostId, isOriginalHost }) => {
+      console.log('[Socket] Host rejoined game:', gameId, 'Original host:', isOriginalHost);
+      setCurrentGameId(gameId);
+      setCurrentHostId(hostId);
+      setIsHost(true);
+      
+      // Update localStorage
+      localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
+      localStorage.setItem(STORAGE_KEYS.HOST_ID, hostId);
+    });
+    
+    // Host create game failed
+    socket.on('host:createGameFailed', ({ reason }) => {
+      console.error('[Socket] Failed to create game:', reason);
+      alert(`Failed to create game: ${reason}`);
+    });
+    
+    // Host join game failed
+    socket.on('host:joinGameFailed', ({ reason }) => {
+      console.error('[Socket] Failed to join game as host:', reason);
+      alert(`Failed to join game: ${reason}`);
+      // Clear invalid game ID
+      localStorage.removeItem(STORAGE_KEYS.GAME_ID);
+      localStorage.removeItem(STORAGE_KEYS.HOST_ID);
+      setCurrentGameId(null);
+      setCurrentHostId(null);
+      setIsHost(false);
+    });
+    
+    // Observer joined game
+    socket.on('observer:joined', ({ gameId }) => {
+      console.log('[Socket] Joined game as observer:', gameId);
+      setCurrentGameId(gameId);
+      localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
+    });
+    
+    // Observer join game failed
+    socket.on('observer:joinGameFailed', ({ reason }) => {
+      console.error('[Socket] Failed to join game as observer:', reason);
+      alert(`Failed to join game: ${reason}`);
+      // Clear invalid game ID
+      localStorage.removeItem(STORAGE_KEYS.GAME_ID);
+      setCurrentGameId(null);
+    });
 
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
+  }, []);
+
+  // --- Host Session Management ---
+
+  const createGame = useCallback(async (hostName: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+      
+      console.log('[createGame] Creating game for host:', hostName);
+      
+      // Listen for success
+      const successHandler = ({ gameId }: { gameId: string }) => {
+        console.log('[createGame] Game created successfully:', gameId);
+        socketRef.current?.off('host:gameCreated', successHandler);
+        socketRef.current?.off('host:createGameFailed', failHandler);
+        resolve(gameId);
+      };
+      
+      // Listen for failure
+      const failHandler = ({ reason }: { reason: string }) => {
+        console.error('[createGame] Failed:', reason);
+        socketRef.current?.off('host:gameCreated', successHandler);
+        socketRef.current?.off('host:createGameFailed', failHandler);
+        reject(new Error(reason));
+      };
+      
+      socketRef.current.once('host:gameCreated', successHandler);
+      socketRef.current.once('host:createGameFailed', failHandler);
+      
+      socketRef.current.emit('host:createGame', { hostName });
+    });
+  }, []);
+
+  const joinAsHost = useCallback((gameId: string) => {
+    if (!socketRef.current) {
+      console.error('Socket not connected!');
+      return;
+    }
+    
+    const hostId = localStorage.getItem(STORAGE_KEYS.HOST_ID) || currentHostId;
+    console.log('[joinAsHost] Joining game as host:', gameId, 'hostId:', hostId);
+    
+    setCurrentGameId(gameId);
+    localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
+    
+    socketRef.current.emit('host:joinGame', { gameId, hostId });
+  }, [currentHostId]);
+
+  const joinAsObserver = useCallback((gameId: string) => {
+    if (!socketRef.current) {
+      console.error('Socket not connected!');
+      return;
+    }
+    
+    console.log('[joinAsObserver] Joining game as observer:', gameId);
+    
+    setCurrentGameId(gameId);
+    localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
+    
+    // Clear any host/player session
+    localStorage.removeItem(STORAGE_KEYS.HOST_ID);
+    localStorage.removeItem(STORAGE_KEYS.HOST_NAME);
+    localStorage.removeItem(STORAGE_KEYS.PLAYER_ID);
+    localStorage.removeItem(STORAGE_KEYS.PLAYER_NAME);
+    setCurrentHostId(null);
+    setCurrentPlayerId(null);
+    setIsHost(false);
+    
+    socketRef.current.emit('observer:joinGame', { gameId });
   }, []);
 
   // --- Player Actions ---
@@ -260,6 +420,27 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     setCurrentGameId(gameId);
     localStorage.setItem(STORAGE_KEYS.GAME_ID, gameId);
     socketRef.current.emit('game:join', { gameId, playerName: name });
+  }, []);
+
+  const leaveGame = useCallback(() => {
+    console.log('[leaveGame] Player leaving current game');
+    
+    // Clear all session data
+    localStorage.removeItem(STORAGE_KEYS.PLAYER_ID);
+    localStorage.removeItem(STORAGE_KEYS.PLAYER_NAME);
+    localStorage.removeItem(STORAGE_KEYS.GAME_ID);
+    
+    // Reset state
+    setCurrentPlayerId(null);
+    setCurrentGameId(null);
+    
+    // Disconnect and reconnect socket to cleanly leave the room
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current.connect();
+    }
+    
+    console.log('[leaveGame] Player session cleared');
   }, []);
 
   const buzz = useCallback((playerId: string) => {
@@ -514,8 +695,14 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
       gameState,
       isConnected,
       currentPlayerId,
+      currentHostId,
+      isHost,
+      createGame,
+      joinAsHost,
+      joinAsObserver,
       joinGame,
       rejoinAs,
+      leaveGame,
       buzz,
       submitWager,
       submitFinalAnswer,

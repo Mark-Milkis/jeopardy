@@ -2,10 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useGame } from '../services/gameService';
 import { GamePhase, Clue, BuzzerStatus } from '../types';
 import { Link } from 'react-router-dom';
+import GameIdDisplay from './GameIdDisplay';
 
 const HostView: React.FC = () => {
   const { 
     gameState, 
+    isConnected,
+    currentHostId,
+    isHost,
+    createGame,
+    joinAsHost,
     openClue, 
     closeClue, 
     armBuzzers, 
@@ -14,7 +20,7 @@ const HostView: React.FC = () => {
     updateScore, 
     skipClue, 
     resetGame,
-        startJeopardy,
+    startJeopardy,
     startDoubleJeopardy,
     startFinalJeopardy,
     updateSettings,
@@ -30,7 +36,14 @@ const HostView: React.FC = () => {
     addPlayer
   } = useGame();
   
-  const { categories, players, activeClueId, phase, activePlayerId, round, dailyDoublePlayerId, dailyDoubleWager, maxPlayers = 6 } = gameState;
+  const { gameId, categories, players, activeClueId, phase, activePlayerId, round, dailyDoublePlayerId, dailyDoubleWager, maxPlayers = 6 } = gameState;
+  
+  // Game creation/join state
+  const [hostName, setHostName] = useState('');
+  const [joinGameId, setJoinGameId] = useState('');
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
+  
+  // Existing state
   const [showSettings, setShowSettings] = useState(false);
   const [ddWagerInput, setDdWagerInput] = useState('');
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -60,14 +73,161 @@ const HostView: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [phase, gameState.buzzersOpen, activePlayerId, armBuzzers, round]);
 
+  // Game Creation Handlers
+  const handleCreateGame = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hostName.trim() || isCreatingGame) return;
+    
+    setIsCreatingGame(true);
+    try {
+      const newGameId = await createGame(hostName.trim());
+      console.log('Game created:', newGameId);
+      setHostName(''); // Clear form
+    } catch (error) {
+      console.error('Failed to create game:', error);
+    } finally {
+      setIsCreatingGame(false);
+    }
+  };
+
+  const handleJoinExistingGame = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedId = joinGameId.trim();
+    
+    // Validate 6-digit format
+    if (!/^\d{6}$/.test(trimmedId)) {
+      alert('Please enter a valid 6-digit game ID');
+      return;
+    }
+    
+    joinAsHost(trimmedId);
+    setJoinGameId(''); // Clear form
+  };
+
   const activePlayer = activePlayerId ? players.find(p => p.id === activePlayerId) : null;
   const isJudged = activePlayer?.isFinalAnswerJudged;
+
+  // Show welcome screen if no game is joined
+  if (!gameId) {
+    return (
+      <div className="h-full w-full bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-8">
+        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl p-12 space-y-8">
+          <div className="text-center space-y-4">
+            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+              Jeopardy Pro Host
+            </h1>
+            <p className="text-gray-600 text-lg">
+              Create a new game or join an existing one
+            </p>
+          </div>
+
+          {/* Create New Game */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="text-3xl">🎮</span> Create New Game
+            </h2>
+            <form onSubmit={handleCreateGame} className="space-y-4">
+              <div>
+                <label htmlFor="hostName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Name
+                </label>
+                <input
+                  id="hostName"
+                  type="text"
+                  value={hostName}
+                  onChange={(e) => setHostName(e.target.value)}
+                  placeholder="Enter your name"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
+                  maxLength={30}
+                  disabled={isCreatingGame}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!hostName.trim() || isCreatingGame}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-4 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg text-lg"
+              >
+                {isCreatingGame ? 'Creating Game...' : 'Create Game'}
+              </button>
+            </form>
+          </div>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t-2 border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+            </div>
+          </div>
+
+          {/* Join Existing Game */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="text-3xl">🔗</span> Join Existing Game
+            </h2>
+            <form onSubmit={handleJoinExistingGame} className="space-y-4">
+              <div>
+                <label htmlFor="joinGameId" className="block text-sm font-medium text-gray-700 mb-2">
+                  6-Digit Game ID
+                </label>
+                <input
+                  id="joinGameId"
+                  type="text"
+                  value={joinGameId}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setJoinGameId(value);
+                  }}
+                  placeholder="123456"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg font-mono text-center tracking-widest"
+                  maxLength={6}
+                  pattern="\d{6}"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={joinGameId.length !== 6}
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 px-6 rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg text-lg"
+              >
+                Join Game
+              </button>
+            </form>
+          </div>
+
+          {/* Connection Status */}
+          <div className="text-center">
+            {isConnected ? (
+              <span className="text-green-600 text-sm flex items-center justify-center gap-2">
+                <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                Connected to server
+              </span>
+            ) : (
+              <span className="text-red-600 text-sm flex items-center justify-center gap-2">
+                <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                Disconnected from server
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full bg-gray-100 flex flex-col font-sans text-gray-900 overflow-hidden relative">
       
       {/* TOP BAR: PLAYERS & CONTROLS */}
       <div className="h-20 bg-gray-900 text-white flex items-center px-4 gap-4 overflow-x-auto border-b-4 border-[#FFCC00] shadow-lg shrink-0 scrollbar-hide">
+        
+        {/* Game ID Display */}
+        <GameIdDisplay 
+          gameId={gameId} 
+          role="host" 
+          isConnected={isConnected}
+          isOriginalHost={gameState.hostId === currentHostId}
+        />
         
         {/* Settings & Browse Buttons */}
         <div className="flex gap-2">

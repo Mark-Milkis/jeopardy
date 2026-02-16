@@ -27,10 +27,31 @@ const BuzzerStatus = {
   LOSER: 'LOSER'
 };
 
+// Generate unique 6-digit game ID
+function generateGameId() {
+  let attempts = 0;
+  let gameId;
+  
+  do {
+    gameId = String(Math.floor(100000 + Math.random() * 900000));
+    attempts++;
+  } while (games.has(gameId) && attempts < 10);
+  
+  if (attempts >= 10) {
+    throw new Error('Failed to generate unique game ID after 10 attempts');
+  }
+  
+  return gameId;
+}
+
 // Default game state factory
-function createDefaultGameState(gameId = 'default') {
+function createDefaultGameState(gameId = 'default', hostId = null, hostName = null) {
   return {
     gameId,
+    hostId, // UUID of the host who created the game
+    hostName, // Display name of the host
+    hostSocketId: null, // Current socket ID of connected host
+    createdAt: Date.now(), // Timestamp for potential cleanup
     phase: GamePhase.BOARD,
     round: 'JEOPARDY',
     categories: [],
@@ -189,6 +210,84 @@ module.exports = function(io) {
           reason: 'Player not available or already connected.' 
         });
       }
+    });
+    
+    // Host: Create new game
+    socket.on('host:createGame', ({ hostName }) => {
+      try {
+        const gameId = generateGameId();
+        const hostId = uuidv4();
+        
+        const newGame = createDefaultGameState(gameId, hostId, hostName);
+        newGame.hostSocketId = socket.id;
+        games.set(gameId, newGame);
+        
+        currentGameId = gameId;
+        socket.join(gameId);
+        
+        console.log(`Host ${hostName} (${hostId}) created game ${gameId}`);
+        
+        socket.emit('host:gameCreated', { 
+          gameId, 
+          hostId,
+          hostName,
+          game: newGame 
+        });
+        
+        socket.emit('gameState:update', newGame);
+      } catch (error) {
+        console.error('Failed to create game:', error);
+        socket.emit('host:createGameFailed', { 
+          reason: 'Failed to generate unique game ID. Please try again.' 
+        });
+      }
+    });
+    
+    // Host: Join existing game
+    socket.on('host:joinGame', ({ gameId, hostId }) => {
+      if (!games.has(gameId)) {
+        socket.emit('host:joinGameFailed', { 
+          reason: `Game ${gameId} does not exist` 
+        });
+        return;
+      }
+      
+      currentGameId = gameId;
+      socket.join(gameId);
+      
+      const game = games.get(gameId);
+      
+      // Check if this is the original host reconnecting
+      if (game.hostId === hostId) {
+        game.hostSocketId = socket.id;
+        console.log(`Host reconnected to game ${gameId}`);
+        socket.emit('host:rejoined', { gameId, hostId, isOriginalHost: true });
+      } else {
+        console.log(`Observer/takeover host joined game ${gameId}`);
+        socket.emit('host:rejoined', { gameId, hostId, isOriginalHost: false });
+      }
+      
+      // Send current game state
+      socket.emit('gameState:update', game);
+    });
+    
+    // Observer: Join game to watch
+    socket.on('observer:joinGame', ({ gameId }) => {
+      if (!games.has(gameId)) {
+        socket.emit('observer:joinGameFailed', { 
+          reason: `Game ${gameId} does not exist` 
+        });
+        return;
+      }
+      
+      currentGameId = gameId;
+      socket.join(gameId);
+      
+      const game = games.get(gameId);
+      console.log(`Observer joined game ${gameId}`);
+      
+      socket.emit('observer:joined', { gameId });
+      socket.emit('gameState:update', game);
     });
     
     // Player actions

@@ -1,8 +1,27 @@
 'use strict';
 
 angular.module('myApp.controllers').
-  controller('BoardCtrl', function ($scope, $timeout, $modal, socket, currencyFilter) {
-    socket.emit('board:init');
+  controller('BoardCtrl', function ($scope, $timeout, $modal, $location, socket, currencyFilter) {
+    // Get session ID from URL parameter
+    var urlParams = new URLSearchParams($location.search());
+    $scope.sessionId = urlParams.get('session') || localStorage.getItem('jeopardy_board_session_id');
+    $scope.showSessionPrompt = !$scope.sessionId;
+    
+    if ($scope.sessionId) {
+      localStorage.setItem('jeopardy_board_session_id', $scope.sessionId);
+      socket.emit('session:join', { sessionId: $scope.sessionId });
+      socket.emit('board:init');
+    }
+    
+    $scope.joinSession = function() {
+      if ($scope.inputSessionId) {
+        $scope.sessionId = $scope.inputSessionId.toUpperCase();
+        localStorage.setItem('jeopardy_board_session_id', $scope.sessionId);
+        $scope.showSessionPrompt = false;
+        socket.emit('session:join', { sessionId: $scope.sessionId });
+        socket.emit('board:init');
+      }
+    };
 
     socket.on('board:init', function (data) {
       console.log('board:init ' + !!data);

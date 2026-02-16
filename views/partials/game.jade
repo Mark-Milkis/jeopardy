@@ -5,6 +5,8 @@ nav.navbar.navbar-default.navbar-fixed-top
         span(ng-show='game.round == "DJ"') Double
         span(ng-show='game.round == "FJ"') Final
         |  Jeopardy!
+        span(ng-show='sessionId')
+          |  - Session: {{sessionId}}
     .collapse.navbar-collapse
       each i in [1, 2, 3, 4, 5, 6]
         form.navbar-form.navbar-left
@@ -15,14 +17,39 @@ nav.navbar.navbar-default.navbar-fixed-top
               input.form-control(type='text', placeholder='Player #{i}', ng-model='game.player_#{i}.name')
               .input-group-addon {{game.player_#{i}.score || 0 | currency:'$':0}}
       ul.nav.navbar-nav.navbar-right
-        li
+        li(ng-show='sessionId')
           button.btn.btn-primary.navbar-btn(type='button', ng-click='showBoard()',) Show Board
-        li
+        li(ng-show='sessionId')
           button.btn.btn-primary.navbar-btn(type='button', ng-click='startGame()', ng-show='!game.round') Start Game
           button.btn.btn-primary.navbar-btn(type='button', ng-click='endRound()', ng-show='game.round == "J" || game.round == "DJ" || game.round == "FJ"') End Round
           button.btn.btn-danger.navbar-btn(type='button', ng-click='resetGame()', ng-show='game.round == "end"') Reset Game
+        li(ng-show='sessionId')
+          button.btn.btn-warning.navbar-btn(type='button', ng-click='leaveSession()') Leave Session
 
-.container
+.container(ng-show='showSessionPrompt')
+  br
+  br
+  br
+  br
+  br
+  br
+  .row
+    .col-md-6.col-md-offset-3
+      .panel.panel-primary
+        .panel-heading
+          h3.panel-title Game Session
+        .panel-body
+          h4 Create a New Session
+          p Start a new game session and share the session ID with players who will join on the board view.
+          button.btn.btn-lg.btn-success.btn-block(type='button', ng-click='createSession()') Create New Session
+          hr
+          h4 Join Existing Session
+          p Enter the session ID to rejoin an existing game.
+          .form-group
+            input.form-control(type='text', placeholder='Enter Session ID', ng-model='inputSessionId', style='text-transform: uppercase;')
+          button.btn.btn-lg.btn-primary.btn-block(type='button', ng-click='joinSession()') Join Session
+
+.container(ng-show='sessionId')
   br
   br
   br

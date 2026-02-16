@@ -1,8 +1,20 @@
-.video-wrapper(ng-if='!game.round')
+.container-fluid(ng-show='showSessionPrompt', style='padding-top: 100px;')
+  .row
+    .col-md-6.col-md-offset-3
+      .panel.panel-primary
+        .panel-heading
+          h3.panel-title Join Game Session
+        .panel-body
+          p Enter the session ID provided by the host to join the game board.
+          .form-group
+            input.form-control.input-lg(type='text', placeholder='Enter Session ID', ng-model='inputSessionId', style='text-transform: uppercase; text-align: center; font-size: 24px;')
+          button.btn.btn-lg.btn-primary.btn-block(type='button', ng-click='joinSession()') Join Session
+
+.video-wrapper(ng-if='!game.round && sessionId')
   iframe(width="560" height="315" src="https://www.youtube.com/embed/-UFIuK4SYdQ?autoplay=1" title="Jeopardy! Intro" frameborder="0" allow="accelerometer; autoplay ; clipboard-write; encrypted-media" allowfullscreen)
 
 each k in ['J', 'DJ']
-  .container-fluid.jeopardy-board(ng-show='game.round == "#{k}"')
+  .container-fluid.jeopardy-board(ng-show='game.round == "#{k}" && sessionId')
     .row.board-row.category-row
       each i in [1, 2, 3, 4, 5, 6]
         .col-md-2.text-center.board-cell.category-cell
@@ -12,7 +24,7 @@ each k in ['J', 'DJ']
         each i in [1, 2, 3, 4, 5, 6]
           .col-md-2.text-center.board-cell.clue-cell
             div(ng-show='data.clue_#{k}_#{i}_#{j} && !game.clue_#{k}_#{i}_#{j}') $#{j * (k == 'J' ? 200 : 400)}
-.container-fluid.jeopardy-board(ng-show='game.round == "FJ" || game.round == "end"')
+.container-fluid.jeopardy-board(ng-show='(game.round == "FJ" || game.round == "end") && sessionId')
   .row.fj-row
     .col-md-12.text-center.board-cell.fj-cell
       div {{data.category_FJ_1.category_name}}

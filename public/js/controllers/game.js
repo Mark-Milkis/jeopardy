@@ -1,8 +1,44 @@
 'use strict';
 
 angular.module('myApp.controllers').
-  controller('GameCtrl', function ($scope, $modal, response, socket) {
+  controller('GameCtrl', function ($scope, $modal, $stateParams, $location, response, socket) {
     $scope.data = response.data;
+    
+    // Session management
+    $scope.sessionId = localStorage.getItem('jeopardy_session_id');
+    $scope.showSessionPrompt = !$scope.sessionId;
+    
+    // Initialize or join session
+    if ($scope.sessionId) {
+      socket.emit('session:join', { sessionId: $scope.sessionId });
+    }
+    
+    $scope.createSession = function() {
+      socket.emit('session:create', function(response) {
+        $scope.sessionId = response.sessionId;
+        localStorage.setItem('jeopardy_session_id', $scope.sessionId);
+        $scope.showSessionPrompt = false;
+        socket.emit('session:join', { sessionId: $scope.sessionId });
+      });
+    };
+    
+    $scope.joinSession = function() {
+      if ($scope.inputSessionId) {
+        $scope.sessionId = $scope.inputSessionId.toUpperCase();
+        localStorage.setItem('jeopardy_session_id', $scope.sessionId);
+        $scope.showSessionPrompt = false;
+        socket.emit('session:join', { sessionId: $scope.sessionId });
+      }
+    };
+    
+    $scope.leaveSession = function() {
+      localStorage.removeItem('jeopardy_session_id');
+      $scope.sessionId = null;
+      $scope.showSessionPrompt = true;
+      $scope.game = {
+        control_player: 'player_1'
+      };
+    };
 
     socket.emit('game:init', $scope.data.id);
 
@@ -12,6 +48,13 @@ angular.module('myApp.controllers').
         $scope.game = data.game;
       }
     })
+    
+    socket.on('game:state', function (data) {
+      console.log('game:state received');
+      if (data) {
+        $scope.game = data.game;
+      }
+    });
 
     socket.on('round:start', function (data) {
       console.log('round:start');
@@ -19,7 +62,7 @@ angular.module('myApp.controllers').
     });
 
 	$scope.showBoard = function() {
-		window.open('/#/board','_blank');
+		window.open('/#/board?session=' + $scope.sessionId,'_blank');
 	};
 
     $scope.startGame = function () {

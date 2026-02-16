@@ -4,20 +4,85 @@
 
 var _ = require('lodash');
 var jsonfile = require('jsonfile');
-var id, datas = {};
+var crypto = require('crypto');
+
+// Store game sessions: { sessionId: { gameData: {...}, clients: [] } }
+var gameSessions = {};
+
+// Generate a unique session ID
+function generateSessionId() {
+  return crypto.randomBytes(4).toString('hex').toUpperCase();
+}
 
 module.exports = function (io) {
   return function (socket) {
+    var currentSessionId = null;
+    
+    // Create a new game session
+    socket.on('session:create', function (callback) {
+      var sessionId = generateSessionId();
+      gameSessions[sessionId] = {
+        gameData: null,
+        clients: []
+      };
+      console.log('session:create ' + sessionId);
+      if (typeof callback === 'function') {
+        callback({ sessionId: sessionId });
+      }
+    });
+    
+    // Join an existing game session
+    socket.on('session:join', function (data) {
+      var sessionId = data.sessionId;
+      console.log('session:join ' + sessionId + ' by socket ' + socket.id);
+      
+      if (!gameSessions[sessionId]) {
+        // Create session if it doesn't exist
+        gameSessions[sessionId] = {
+          gameData: null,
+          clients: []
+        };
+      }
+      
+      // Leave any previous session
+      if (currentSessionId) {
+        socket.leave(currentSessionId);
+        var prevSession = gameSessions[currentSessionId];
+        if (prevSession) {
+          prevSession.clients = prevSession.clients.filter(function(id) { return id !== socket.id; });
+        }
+      }
+      
+      // Join the new session
+      currentSessionId = sessionId;
+      socket.join(sessionId);
+      gameSessions[sessionId].clients.push(socket.id);
+      
+      // Send current game state if it exists
+      if (gameSessions[sessionId].gameData) {
+        socket.emit('game:state', gameSessions[sessionId].gameData);
+      }
+    });
+    
     socket.on('game:start', function (data) {
-      console.log('game:start ' + data.data.id);
-      id = data.data.id;
-      datas[id] = data;
+      if (!currentSessionId) {
+        console.log('game:start called without session');
+        return;
+      }
+      
+      console.log('game:start ' + data.data.id + ' in session ' + currentSessionId);
       data.game.round = 'J';
-      io.emit('round:start', data);
+      gameSessions[currentSessionId].gameData = data;
+      io.to(currentSessionId).emit('round:start', data);
     });
 
     socket.on('round:end', function (data) {
-      console.log('round:end ' + data.round);
+      if (!currentSessionId) {
+        console.log('round:end called without session');
+        return;
+      }
+      
+      console.log('round:end ' + data.round + ' in session ' + currentSessionId);
       if (data.round === 'J') {
         data.round = 'DJ';
         
@@ -72,37 +137,85 @@ module.exports = function (io) {
       else if (data.round === 'FJ') {
         data.round = 'end';
 
-        var file = 'games/' + id + '-' + new Date().getTime() + '.json';
-        jsonfile.writeFileSync(file, data, { spaces: 2 });
+        var session = gameSessions[currentSessionId];
+        if (session && session.gameData) {
+          var gameId = session.gameData.data.id;
+          var file = 'games/' + gameId + '-' + new Date().getTime() + '.json';
+          jsonfile.writeFileSync(file, data, { spaces: 2 });
+        }
       }
-      datas[id].game = data;
-      io.emit('round:start', datas[id]);
+      
+      if (gameSessions[currentSessionId]) {
+        gameSessions[currentSessionId].gameData.game = data;
+        io.to(currentSessionId).emit('round:start', gameSessions[currentSessionId].gameData);
+      }
     })
 
     socket.on('board:init', function () {
-      console.log('board:init');
-      socket.emit('board:init', datas[id]);
+      if (!currentSessionId) {
+        console.log('board:init called without session');
+        return;
+      }
+      
+      console.log('board:init in session ' + currentSessionId);
+      if (gameSessions[currentSessionId]) {
+        socket.emit('board:init', gameSessions[currentSessionId].gameData);
+      }
     });
 
     socket.on('game:init', function (data) {
-      console.log('game:init ' + data);
-      socket.emit('game:init', datas[data]);
+      if (!currentSessionId) {
+        console.log('game:init called without session');
+        return;
+      }
+      
+      console.log('game:init ' + data + ' in session ' + currentSessionId);
+      if (gameSessions[currentSessionId]) {
+        socket.emit('game:init', gameSessions[currentSessionId].gameData);
+      }
     });
 
     socket.on('clue:start', function (data) {
-      console.log('clue:start ' + data);
-      socket.broadcast.emit('clue:start', data);
+      if (!currentSessionId) {
+        console.log('clue:start called without session');
+        return;
+      }
+      
+      console.log('clue:start ' + data + ' in session ' + currentSessionId);
+      socket.to(currentSessionId).emit('clue:start', data);
     });
 
     socket.on('clue:daily', function (data) {
-      console.log('clue:daily');
-      socket.broadcast.emit('clue:daily', data);
+      if (!currentSessionId) {
+        console.log('clue:daily called without session');
+        return;
+      }
+      
+      console.log('clue:daily in session ' + currentSessionId);
+      socket.to(currentSessionId).emit('clue:daily', data);
     });
 
     socket.on('clue:end', function (data) {
-      console.log('clue:end');
-      datas[id].game = data;
-      socket.broadcast.emit('clue:end', data);
+      if (!currentSessionId) {
+        console.log('clue:end called without session');
+        return;
+      }
+      
+      console.log('clue:end in session ' + currentSessionId);
+      if (gameSessions[currentSessionId]) {
+        gameSessions[currentSessionId].gameData.game = data;
+      }
+      socket.to(currentSessionId).emit('clue:end', data);
+    });
+    
+    // Handle disconnection
+    socket.on('disconnect', function () {
+      console.log('socket disconnected: ' + socket.id);
+      if (currentSessionId && gameSessions[currentSessionId]) {
+        gameSessions[currentSessionId].clients = gameSessions[currentSessionId].clients.filter(function(id) { 
+          return id !== socket.id; 
+        });
+      }
     });
   };
 };

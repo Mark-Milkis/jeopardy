@@ -1,0 +1,5 @@
+{
+  "name": "Jeopardy Pro",
+  "description": "A real-time, three-view Jeopardy game show application with Host, Board, and Player interfaces.",
+  "requestFramePermissions": []
+}

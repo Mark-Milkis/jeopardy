@@ -1,0 +1,31 @@
+# Development Dockerfile with hot reload
+FROM node:18-alpine
+
+# Install dumb-init
+RUN apk add --no-cache dumb-init git
+
+WORKDIR /usr/src/app
+
+# Copy package files
+COPY package*.json ./
+COPY client/src/package*.json ./client/src/
+
+# Install all dependencies (including dev)
+RUN npm install && \
+    cd client/src && \
+    npm install
+
+# Copy source code
+COPY . .
+
+# Generate version info
+RUN node scripts/sync-version.js --git-sha || node scripts/sync-version.js
+
+# Expose ports (backend and vite dev server)
+EXPOSE 3000 5173
+
+# Use dumb-init
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start both backend and frontend dev servers
+CMD sh -c "npm run dev & cd client/src && npm run dev"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../services/gameService';
 import { GamePhase, BuzzerStatus } from '../types';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -10,6 +10,11 @@ const PlayerView: React.FC = () => {
   const [, setTick] = useState(0);
   const [showReconnectedMessage, setShowReconnectedMessage] = useState(false);
   const [showDisconnectedPlayers, setShowDisconnectedPlayers] = useState(false);
+
+  // Optimistic buzzer state — set immediately on tap, cleared on server response
+  const [isPendingBuzz, setIsPendingBuzz] = useState(false);
+  const pendingBuzzTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevBuzzerStatusRef = useRef<BuzzerStatus | undefined>(undefined);
   
   // Activate wake lock to prevent screen from sleeping
   const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
@@ -57,18 +62,37 @@ const PlayerView: React.FC = () => {
     }
   }, [isLockedOut]);
 
-  // Haptic Feedback Logic
+  // Clear optimistic state and haptics when the server confirms the outcome
   useEffect(() => {
-    if (!player) return;
+    const prev = prevBuzzerStatusRef.current;
+    const curr = player?.buzzerStatus;
+    prevBuzzerStatusRef.current = curr;
 
-    if (player.buzzerStatus === BuzzerStatus.WINNER) {
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]); 
-    } else if (player.buzzerStatus === BuzzerStatus.LOSER) {
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(200); 
-    } else if (player.buzzerStatus === BuzzerStatus.ARMED) {
-       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+    if (curr === BuzzerStatus.WINNER || curr === BuzzerStatus.LOSER) {
+      if (pendingBuzzTimeoutRef.current) {
+        clearTimeout(pendingBuzzTimeoutRef.current);
+        pendingBuzzTimeoutRef.current = null;
+      }
+      setIsPendingBuzz(false);
     }
-  }, [player?.buzzerStatus]); 
+
+    // Haptic feedback
+    if (!player) return;
+    if (curr === BuzzerStatus.WINNER) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    } else if (curr === BuzzerStatus.LOSER) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(200);
+    } else if (curr === BuzzerStatus.ARMED) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+    }
+  }, [player?.buzzerStatus]);
+
+  // Cleanup safety-valve timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingBuzzTimeoutRef.current) clearTimeout(pendingBuzzTimeoutRef.current);
+    };
+  }, []);
 
   // Handle Join
   const handleJoin = (e: React.FormEvent) => {
@@ -82,13 +106,14 @@ const PlayerView: React.FC = () => {
     }
   };
 
-  // Handle Buzz
+  // Handle Buzz — set optimistic state immediately, guard against double-emit
   const handleBuzz = () => {
-    if (!player) return;
+    if (!player || isPendingBuzz) return;
     buzz(player.id);
-    if (player.buzzerStatus === BuzzerStatus.ARMED) {
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
-    }
+    setIsPendingBuzz(true);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+    // Safety valve: clear pending state if server never responds (e.g. disconnect)
+    pendingBuzzTimeoutRef.current = setTimeout(() => setIsPendingBuzz(false), 2000);
   };
 
   // Handle Wager Submit
@@ -309,6 +334,12 @@ const PlayerView: React.FC = () => {
       buttonColor = "bg-yellow-400 border-yellow-600 text-black shadow-[0_0_30px_rgba(250,204,21,0.5)]";
       buttonText = "PENALTY";
       isDisabled = true;
+  } else if (isPendingBuzz) {
+      // Optimistic state: buzz sent, awaiting server confirmation
+      buttonColor = "bg-amber-400 border-amber-600 text-black";
+      buttonText = "BUZZED!";
+      buttonEffect = "animate-pulse";
+      isDisabled = true;
   } else {
       switch(player.buzzerStatus) {
         case BuzzerStatus.IDLE:
@@ -320,7 +351,7 @@ const PlayerView: React.FC = () => {
              if (gameState.activeClueId) {
                  buttonColor = "bg-gray-600 active:bg-gray-700 text-white";
                  buttonText = "LISTEN";
-                 isDisabled = false; 
+                 isDisabled = false;
              } else {
                  buttonColor = "bg-gray-600 text-white";
                  buttonText = "WAITING";
@@ -341,7 +372,7 @@ const PlayerView: React.FC = () => {
           break;
         case BuzzerStatus.LOSER:
           buttonColor = "bg-red-600 text-white";
-          buttonText = "LOCKED OUT";
+          buttonText = "TOO SLOW";
           isDisabled = true;
           break;
       }
@@ -382,9 +413,10 @@ const PlayerView: React.FC = () => {
              <h3 className="text-2xl font-bold uppercase tracking-widest text-white/80">{
                gameState.phase === GamePhase.DAILY_DOUBLE ? "Waiting for Host..." :
                isLockedOut ? "PENALTY!" :
-               gameState.phase === GamePhase.BOARD ? "Look at the Board" : 
+               isPendingBuzz ? "Buzzing..." :
+               gameState.phase === GamePhase.BOARD ? "Look at the Board" :
                player.buzzerStatus === BuzzerStatus.WINNER ? "IT'S YOU!" :
-               player.buzzerStatus === BuzzerStatus.ARMED ? "GO GO GO!" : 
+               player.buzzerStatus === BuzzerStatus.ARMED ? "GO GO GO!" :
                "Wait..."
              }</h3>
         </div>

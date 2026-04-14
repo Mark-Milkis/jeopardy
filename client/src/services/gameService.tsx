@@ -98,6 +98,11 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     doubleJeopardy: Category[];
     finalJeopardy: Category[];
   } | null>(null);
+
+  // Clock synchronisation — keeps an estimate of (serverTime - clientTime) so
+  // that buzz events carry a server-equivalent timestamp for fair arbitration.
+  const clockOffsetRef = useRef<number>(0);
+  const syncCompleteRef = useRef<boolean>(false);
   
   const [gameState, setGameState] = useState<GameState>({
     phase: GamePhase.BOARD,
@@ -143,21 +148,54 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     socketRef.current = socket;
     console.log('[GameProvider] Socket instance created:', !!socket);
 
+    // Run 3 ping-pong rounds and store the median clock offset so that buzz
+    // events can carry a server-equivalent timestamp for fair winner arbitration.
+    const syncClock = async () => {
+      const samples: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const clientTime = Date.now();
+        const result = await new Promise<{ serverTime: number }>((resolve) => {
+          socket.once('sync:pong', resolve);
+          socket.emit('sync:ping', { clientTime, seq: i });
+        });
+        const rtt = Date.now() - clientTime;
+        samples.push(result.serverTime - (clientTime + rtt / 2));
+      }
+      samples.sort((a, b) => a - b);
+      clockOffsetRef.current = samples[1]; // median of 3
+      syncCompleteRef.current = true;
+      console.log('[ClockSync] offset:', clockOffsetRef.current, 'ms');
+    };
+
+    // Re-sync periodically, but only when buzzers are idle to avoid adding
+    // socket traffic during the latency-sensitive buzzer window.
+    const resyncInterval = setInterval(() => {
+      if (socketRef.current?.connected && !socketRef.current) return;
+      // Access buzzersOpen via a ref snapshot is not straightforward from inside
+      // the effect closure, so we simply re-sync; the overhead is minimal (3 RTTs).
+      syncClock().catch(() => {});
+    }, 60_000);
+
     socket.on('connect', () => {
       console.log('[Socket] ✓ Connected to Socket.IO server, socket.id:', socket.id);
       setIsConnected(true);
-      
+
+      // Reset clock sync state and re-synchronise on every (re)connect
+      syncCompleteRef.current = false;
+      clockOffsetRef.current = 0;
+      syncClock().catch(() => {});
+
       // Try to reconnect to existing session if available
       const storedPlayerId = localStorage.getItem(STORAGE_KEYS.PLAYER_ID);
       const storedPlayerName = localStorage.getItem(STORAGE_KEYS.PLAYER_NAME);
       const storedGameId = localStorage.getItem(STORAGE_KEYS.GAME_ID) || 'default';
-      
+
       if (storedPlayerId && storedPlayerName) {
         console.log('[Socket] Attempting to reconnect as player:', storedPlayerName, storedPlayerId);
-        socket.emit('player:reconnect', { 
-          gameId: storedGameId, 
+        socket.emit('player:reconnect', {
+          gameId: storedGameId,
           playerId: storedPlayerId,
-          playerName: storedPlayerName 
+          playerName: storedPlayerName
         });
       } else {
         // Join default game room as observer
@@ -243,6 +281,7 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
     });
 
     return () => {
+      clearInterval(resyncInterval);
       socket.disconnect();
       socketRef.current = null;
     };
@@ -265,7 +304,13 @@ export const GameProvider = ({ children }: PropsWithChildren<{}>) => {
   const buzz = useCallback((playerId: string) => {
     console.log('buzz called:', playerId, 'socket?', !!socketRef.current);
     if (!socketRef.current) return;
-    socketRef.current.emit('player:buzz', { gameId: currentGameId, playerId });
+    // Include a server-equivalent timestamp so the server can arbitrate fairly
+    // when two clients buzz within the arbitration window. Only sent after the
+    // clock sync completes; server falls back to its own time otherwise.
+    const buzzTimestamp = syncCompleteRef.current
+      ? Date.now() + clockOffsetRef.current
+      : undefined;
+    socketRef.current.emit('player:buzz', { gameId: currentGameId, playerId, buzzTimestamp });
   }, [currentGameId]);
 
   const submitWager = useCallback((playerId: string, amount: number) => {

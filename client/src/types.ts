@@ -64,6 +64,7 @@ export interface GameState {
   dailyDoublePlayerId?: string | null;
   dailyDoubleWager?: number | null;
   maxPlayers?: number; // Maximum number of players allowed (default: 6)
+  armTimestamp?: number | null; // Server time when buzzers were last armed
 }
 
 // Initial Data Mock

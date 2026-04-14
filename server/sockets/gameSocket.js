@@ -8,6 +8,11 @@ const { v4: uuidv4 } = require('uuid');
 // Game state storage (in-memory, can be moved to Redis/DB later)
 const games = new Map();
 
+// Latency mitigation constants
+const BUZZ_ARBITRATION_WINDOW_MS = 50;  // Collect buzzes for this long before picking a winner
+const EARLY_BUZZ_TOLERANCE_MS = 50;     // Grace period to avoid false penalties from clock drift
+const BUZZ_TIMESTAMP_MAX_SKEW_MS = 500; // Anti-cheat: reject client timestamps this far off server time
+
 // Enums matching frontend types
 const GamePhase = {
   BOARD: 'BOARD',
@@ -43,6 +48,8 @@ function createDefaultGameState(gameId = 'default') {
     dailyDoublePlayerId: null,
     dailyDoubleWager: null,
     maxPlayers: 6, // Default max players
+    armTimestamp: null,   // Server time when buzzers were last armed
+    pendingWinner: null,  // { playerId, effectiveBuzzTime } during arbitration window
   };
 }
 
@@ -58,6 +65,28 @@ function getGame(gameId) {
 function broadcastGameState(io, gameId) {
   const game = getGame(gameId);
   io.to(gameId).emit('gameState:update', game);
+}
+
+// Finalize the buzzer winner after the arbitration window has closed.
+// By delaying the broadcast we avoid a "winner flip" when two buzzes arrive
+// within milliseconds of each other.
+function finalizeWinner(io, gameId) {
+  const game = getGame(gameId);
+  if (!game.pendingWinner || !game.buzzersOpen) return;
+
+  const { playerId } = game.pendingWinner;
+  game.buzzersOpen = false;
+  game.activePlayerId = playerId;
+  game.lastBuzzTime = game.pendingWinner.effectiveBuzzTime;
+  game.pendingWinner = null;
+
+  const winner = game.players.find(p => p.id === playerId);
+  game.players.forEach(p => {
+    p.buzzerStatus = p.id === playerId ? BuzzerStatus.WINNER : BuzzerStatus.LOSER;
+  });
+
+  console.log(`Winner after arbitration: ${winner ? winner.name : playerId}`);
+  broadcastGameState(io, gameId);
 }
 
 module.exports = function(io) {
@@ -191,44 +220,72 @@ module.exports = function(io) {
       }
     });
     
+    // Clock synchronisation — client sends its local time, server echoes it back
+    // alongside server time so the client can compute its clock offset.
+    socket.on('sync:ping', ({ clientTime, seq }) => {
+      socket.emit('sync:pong', { clientTime, serverTime: Date.now(), seq });
+    });
+
     // Player actions
-    socket.on('player:buzz', ({ gameId, playerId }) => {
+    socket.on('player:buzz', ({ gameId, playerId, buzzTimestamp }) => {
       const game = getGame(gameId);
-      
+
       // 1. If someone already won (is answering), ignore
       if (game.activePlayerId) {
         return;
       }
-      
+
       const player = game.players.find(p => p.id === playerId);
       if (!player) return;
-      
+
       // 2. Check for lockout/penalty
-      if (player.lockedOutUntil && player.lockedOutUntil > Date.now()) {
-        socket.emit('player:lockedOut', { playerId, remainingTime: player.lockedOutUntil - Date.now() });
+      const now = Date.now();
+      if (player.lockedOutUntil && player.lockedOutUntil > now) {
+        socket.emit('player:lockedOut', { playerId, remainingTime: player.lockedOutUntil - now });
         return;
       }
-      
-      // 3. Early buzz logic (buzzing when closed but active clue exists)
+
+      // 3. Validate and resolve the effective buzz time.
+      //    The client sends its clock-offset-adjusted estimate of server time.
+      //    We accept it only if it is within BUZZ_TIMESTAMP_MAX_SKEW_MS of our
+      //    own clock to guard against cheating or extreme drift.
+      const isClientTimestampValid =
+        typeof buzzTimestamp === 'number' &&
+        Math.abs(buzzTimestamp - now) <= BUZZ_TIMESTAMP_MAX_SKEW_MS;
+      const effectiveBuzzTime = isClientTimestampValid ? buzzTimestamp : now;
+
+      // 4. Early buzz detection (buzzing before buzzers are armed).
+      //    Use armTimestamp if available so that clock-offset-adjusted timestamps
+      //    are compared fairly; fall back to the simple !buzzersOpen check.
       if (!game.buzzersOpen && game.activeClueId && game.phase === GamePhase.CLUE && game.round !== 'FINAL_JEOPARDY') {
-        player.lockedOutUntil = Date.now() + game.earlyBuzzPenaltyDuration;
-        socket.emit('player:earlyBuzz', { playerId, penaltyDuration: game.earlyBuzzPenaltyDuration });
-        broadcastGameState(io, gameId);
-        return;
+        const isEarlyBuzz = game.armTimestamp !== null
+          ? effectiveBuzzTime < (game.armTimestamp - EARLY_BUZZ_TOLERANCE_MS)
+          : true; // buzzersOpen is false and no armTimestamp — definitely early
+        if (isEarlyBuzz) {
+          player.lockedOutUntil = now + game.earlyBuzzPenaltyDuration;
+          socket.emit('player:earlyBuzz', { playerId, penaltyDuration: game.earlyBuzzPenaltyDuration });
+          broadcastGameState(io, gameId);
+          return;
+        }
+        // If buzzTimestamp is just inside the tolerance window, fall through to
+        // the valid-buzz path below (buzzers may have opened in transit).
       }
-      
-      // 4. Standard valid buzz
+
+      // 5. Valid buzz — collect within the arbitration window, then pick winner.
+      //    This prevents "winner flip" when two players buzz within ~50 ms of
+      //    each other: we delay the broadcast and keep the earliest timestamp.
       if (game.buzzersOpen) {
-        game.buzzersOpen = false;
-        game.activePlayerId = playerId;
-        game.lastBuzzTime = Date.now();
-        
-        game.players.forEach(p => {
-          p.buzzerStatus = p.id === playerId ? BuzzerStatus.WINNER : BuzzerStatus.LOSER;
-        });
-        
-        console.log(`Player ${player.name} buzzed in!`);
-        broadcastGameState(io, gameId);
+        if (game.pendingWinner === null) {
+          // First buzz in this round — set as tentative winner and start timer
+          game.pendingWinner = { playerId, effectiveBuzzTime };
+          setTimeout(() => finalizeWinner(io, gameId), BUZZ_ARBITRATION_WINDOW_MS);
+          console.log(`Player ${player.name} buzzed first (arbitrating…)`);
+        } else if (effectiveBuzzTime < game.pendingWinner.effectiveBuzzTime) {
+          // Earlier timestamp arrived before the window closed — update winner
+          game.pendingWinner = { playerId, effectiveBuzzTime };
+          console.log(`Player ${player.name} takes the lead with earlier timestamp`);
+        }
+        // Later timestamps are silently ignored — the setTimeout will finalize
       }
     });
     
@@ -284,7 +341,9 @@ module.exports = function(io) {
       game.activePlayerId = null;
       game.dailyDoublePlayerId = null;
       game.dailyDoubleWager = null;
-      
+      game.armTimestamp = null;
+      game.pendingWinner = null;
+
       game.players.forEach(p => {
         p.buzzerStatus = BuzzerStatus.LOCKED;
         p.lockedOutUntil = 0;
@@ -312,19 +371,23 @@ module.exports = function(io) {
       game.activePlayerId = null;
       game.dailyDoublePlayerId = null;
       game.dailyDoubleWager = null;
-      
+      game.armTimestamp = null;
+      game.pendingWinner = null;
+
       game.players.forEach(p => {
         p.buzzerStatus = BuzzerStatus.IDLE;
       });
-      
+
       broadcastGameState(io, gameId);
     });
-    
+
     socket.on('host:armBuzzers', ({ gameId }) => {
       const game = getGame(gameId);
       const now = Date.now();
-      
+
       game.buzzersOpen = true;
+      game.armTimestamp = now;  // Record when buzzers opened for timestamp-based early-buzz checks
+      game.pendingWinner = null;
       
       game.players.forEach(p => {
         const isPenalized = p.lockedOutUntil && p.lockedOutUntil > now;
